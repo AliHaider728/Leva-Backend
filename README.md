@@ -1,0 +1,56 @@
+﻿# ALVORA Skincare - Backend API
+
+The core backend REST API powering the **ALVORA Skincare** e-commerce platform. This service handles data management, business logic, secure authentication, and third-party integrations (payments, emails, analytics).
+
+## Tech Stack
+- **Runtime:** Node.js
+- **Framework:** Express.js
+- **Language:** TypeScript
+- **Database:** MySQL (using `mysql2` with connection pooling)
+- **Authentication:** JSON Web Tokens (JWT)
+- **Storage:** Cloudflare R2 (S3-compatible API) for image storage
+- **Email:** Resend API
+
+## Key Features
+- **RESTful Architecture:** Clean, modular endpoints for products, bundles, categories, orders, customers, and settings.
+- **Robust Database Integration:** Direct MySQL queries optimized for performance.
+- **Secure Admin Authentication:** JWT-based route protection for all admin-facing endpoints.
+- **Media Management:** Direct file upload pipeline to Cloudflare R2 for fast, distributed asset delivery.
+- **Server-Side Tracking:** Deep integration with Meta Conversions API (CAPI) and TikTok Events API for accurate server-side purchase tracking.
+- **Automated Emails:** Order confirmations and delivery updates powered by Resend.
+
+## Getting Started
+
+### Prerequisites
+- Node.js (v18 or higher)
+- MySQL Server (v8 or higher)
+- Cloudflare R2 (or AWS S3) credentials
+
+### Installation
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Create a `.env` file in the root directory with the following configurations:
+   - Database credentials (`MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`)
+   - JWT Secret (`JWT_SECRET`)
+   - Cloudflare R2 credentials
+   - Meta CAPI & TikTok API tokens
+   - Resend API key
+
+### Database Setup
+Run the provided SQL initialization scripts (e.g., `database.sql`) against your MySQL instance to create the necessary tables.
+
+### Development
+Start the development server with hot-reloading:
+```bash
+npm run dev
+```
+
+### Production Build
+Compile TypeScript to JavaScript and run the production server:
+```bash
+npm run build
+npm start
+```
