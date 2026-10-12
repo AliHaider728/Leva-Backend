@@ -1,3 +1,7 @@
+import helmet from 'helmet';
+import { limiter,accountLimiter,wrapAsyncRouter,errorHandler } from './middleware/security.js';
+import featureRoutes from './mysql-routes/features.js';
+import { requireFeature } from './middleware/features.js';
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors, { CorsOptions } from 'cors';
@@ -22,19 +26,18 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+const limiterForOrders=limiter(20),limiterForReviews=limiter(10),limiterForContact=limiter(5),limiterForCoupons=limiter(30);
 const app = express();
+app.disable('x-powered-by');
+const proxyHops=Number(process.env.TRUST_PROXY_HOPS||0);if(Number.isInteger(proxyHops)&&proxyHops>0)app.set('trust proxy',proxyHops);
+app.use(helmet());
+
 
 const configuredFrontendUrl = process.env.FRONTEND_URL?.trim();
-const allowedOrigins = [
-  'https://alvora.pk',
-  'https://www.alvora.pk',
-  'https://admin.alvora.pk',
-  'https://alvora-lyart.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:5173',
+const allowedOrigins = [...new Set([
+  ...(process.env.CORS_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean),
   ...(configuredFrontendUrl ? [configuredFrontendUrl] : [])
-];
+])];
 
 const corsOptions: CorsOptions = {
   origin: allowedOrigins,
@@ -46,6 +49,7 @@ const corsOptions: CorsOptions = {
 
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
+app.use((req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)&&req.headers.origin&&!allowedOrigins.includes(req.headers.origin))return res.status(403).json({error:'This origin is not permitted.'});next();});
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
@@ -60,7 +64,7 @@ app.get('/', async (_req: Request, res: Response) => {
 
   res.json({
     status: 'online',
-    message: 'Alvora API Backend is running (MySQL)',
+    message: 'LEVA API Backend is running (MySQL)',
     database: dbStatus,
     endpoints: [
       '/api/products',
@@ -94,19 +98,27 @@ app.get('/api/health', async (_req: Request, res: Response) => {
   }
 });
 
-app.use('/api/contact', mysqlContactRoutes);
-app.use('/api/coupons', mysqlCouponRoutes);
+for(const router of [featureRoutes,mysqlContactRoutes,mysqlCouponRoutes,mysqlSettingsRoutes,mysqlGlobalAttributeRoutes,mysqlCategoryRoutes,mysqlAuthRoutes,mysqlReviewRoutes,mysqlOrderRoutes,mysqlProductRoutes,bundlesRouter,audioReviewsRouter,uploadRoutes])wrapAsyncRouter(router);
+app.use('/api/orders', (req,res,next)=>req.method==='POST'?limiterForOrders(req,res,next):next());
+app.use('/api/reviews', (req,res,next)=>req.method==='POST'?limiterForReviews(req,res,next):next());
+app.use('/api/contact', (req,res,next)=>req.method==='POST'?limiterForContact(req,res,next):next());
+app.post('/api/coupons/validate',limiterForCoupons);
+app.use('/api/features',featureRoutes);
+app.use('/api/contact',requireFeature('contact'), mysqlContactRoutes);
+app.use('/api/coupons',requireFeature('coupons'), mysqlCouponRoutes);
 app.use('/api/settings', mysqlSettingsRoutes);
-app.use('/api/global-attributes', mysqlGlobalAttributeRoutes);
-app.use('/api/categories', mysqlCategoryRoutes);
+app.use('/api/global-attributes',requireFeature('variants'), mysqlGlobalAttributeRoutes);
+app.use('/api/categories',requireFeature('categories'), mysqlCategoryRoutes);
 app.use('/api/auth', mysqlAuthRoutes);
-app.use('/api/reviews', mysqlReviewRoutes);
+app.use('/api/reviews',requireFeature('reviews'), mysqlReviewRoutes);
 app.use('/api/orders', mysqlOrderRoutes);
 app.use('/api/products', mysqlProductRoutes);
-app.use('/api/bundles', bundlesRouter);
-app.use('/api/audio-reviews', audioReviewsRouter);
+app.use('/api/bundles',requireFeature('bundles'), bundlesRouter);
+app.use('/api/audio-reviews',requireFeature('audioReviews'), audioReviewsRouter);
 app.use('/api/upload', uploadRoutes);
 
+app.use((_req,res)=>res.status(404).json({error:'Endpoint not found.'}));
+app.use(errorHandler);
 export default app;
 
 if (typeof module !== 'undefined') {
@@ -171,7 +183,7 @@ if (
         const [[{ count: users }]] = await pool.execute<any>('SELECT COUNT(*) as count FROM users');
 
         console.log('\n=========================================');
-        console.log('  Alvora Backend API (MySQL)');
+        console.log('  LEVA Backend API (MySQL)');
         console.log(`  Status: RUNNING on http://localhost:${port}`);
         console.log('  Database: CONNECTED (MySQL)');
         console.log(`  Products: ${products} | Reviews: ${reviews} | Orders: ${orders}`);
@@ -179,7 +191,7 @@ if (
         console.log('=========================================\n');
       } catch (err) {
         console.log('\n=========================================');
-        console.log('  Alvora Backend API (MySQL)');
+        console.log('  LEVA Backend API (MySQL)');
         console.log(`  Status: RUNNING on http://localhost:${port}`);
         console.log('  Database: DISCONNECTED (MySQL Error)');
         console.log('=========================================\n');

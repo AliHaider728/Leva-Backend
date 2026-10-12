@@ -2,7 +2,7 @@ import { triggerSitemapRevalidation } from '../utils/revalidateSitemap';
 import { Router } from 'express';
 import * as fs from 'fs';
 import { pool } from '../mysql-lib/db';
-import { authenticateToken, requireAdmin } from '../middleware/auth.js';
+import { authenticateToken,authenticateIfPresent,requireAdmin,AuthRequest } from '../middleware/auth.js';
 import { randomUUID } from 'crypto';
 import { validateBundleGallery, ensureBundleGallerySchema, getBundleGalleries, replaceBundleGallery, deleteBundleGallery } from '../mysql-lib/bundleGallery.js';
 
@@ -25,9 +25,10 @@ const parseJson = (val: any, fallback: any = null) => {
 // ==========================================
 
 // List bundles
-router.get('/', async (req, res) => {
+router.get('/',authenticateIfPresent,async (req, res) => {
   try {
     const showAll = req.query.all === 'true';
+    if(showAll&&!['admin','super_admin'].includes((req as AuthRequest).user?.role||''))return res.status(403).json({error:'Admin privileges are required to view inactive bundles.'});
     const query = showAll 
       ? 'SELECT * FROM bundles ORDER BY displayOrder ASC'
       : 'SELECT * FROM bundles WHERE isActive = 1 ORDER BY displayOrder ASC';
@@ -210,7 +211,7 @@ router.get('/:slug', async (req, res) => {
 router.post('/', authenticateToken, requireAdmin, async (req, res) => {
   let galleryImages: string[];
   try { galleryImages = validateBundleGallery(req.body.galleryImages === undefined ? [] : req.body.galleryImages); }
-  catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+  catch (error) { return res.status(400).json({ error: 'Invalid request.' }); }
   try { await ensureBundleGallerySchema(); }
   catch { return res.status(503).json({ error: 'Bundle gallery storage is unavailable. Please try again.' }); }
   const conn = await pool.getConnection();
@@ -296,7 +297,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
 router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
   let galleryImages: string[] | undefined;
   try { if (req.body.galleryImages !== undefined) galleryImages = validateBundleGallery(req.body.galleryImages); }
-  catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+  catch (error) { return res.status(400).json({ error: 'Invalid request.' }); }
   if (galleryImages !== undefined) {
     try { await ensureBundleGallerySchema(); }
     catch { return res.status(503).json({ error: 'Bundle gallery storage is unavailable. Please try again.' }); }

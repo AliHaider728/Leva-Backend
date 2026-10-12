@@ -5,7 +5,7 @@ import sanitizeHtml from 'sanitize-html';
 import crypto from 'crypto';
 
 // ─── Explicit column lists (no SELECT *) ────────────────────────────────────
-const REVIEW_COLS_PUBLIC = 'id, productId, productName, reviewerName, reviewerEmail, rating, title, content, avatarUrl, imageUrl, imagePublicId, verifiedPurchase, source, status, approvedAt, createdAt, updatedAt';
+const REVIEW_COLS_PUBLIC = 'id, productId, productName, reviewerName, rating, title, content, avatarUrl, imageUrl, imagePublicId, verifiedPurchase, source, status, approvedAt, createdAt, updatedAt';
 const REVIEW_COLS_ADMIN = 'id, productId, productName, reviewerName, reviewerEmail, rating, title, content, avatarUrl, imageUrl, imagePublicId, verifiedPurchase, source, status, userId, orderId, approvedAt, approvedBy, createdAt, updatedAt';
 
 const router = Router();
@@ -49,7 +49,7 @@ router.get('/product/:productId', async (req: Request, res: Response) => {
     );
     res.json(reviews);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -82,7 +82,7 @@ router.post('/', async (req: Request, res: Response) => {
       review: (rows as any[])[0]
     });
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -142,7 +142,7 @@ router.get('/admin', authenticateToken, requireAdmin, async (req: Request, res: 
       counts: countsObj
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -168,7 +168,7 @@ router.post('/admin', authenticateToken, requireAdmin, async (req: AuthRequest, 
     const [rows] = await pool.execute(`SELECT ${REVIEW_COLS_ADMIN} FROM reviews WHERE id = ?`, [id]);
     res.status(201).json((rows as any[])[0]);
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -188,7 +188,7 @@ router.put('/:id/approve', authenticateToken, requireAdmin, async (req: AuthRequ
     await recalculateProductReviewSummary(review.productId);
     res.json(review);
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -207,7 +207,7 @@ router.put('/:id/reject', authenticateToken, requireAdmin, async (req: Request, 
     await recalculateProductReviewSummary(review.productId);
     res.json(review);
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -237,7 +237,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: Request, res: Re
 
     res.json(review);
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -254,7 +254,7 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req: Request, res:
 
     res.json({ message: 'Review deleted successfully' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 

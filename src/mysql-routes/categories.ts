@@ -186,7 +186,7 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req: Request, res:
     res.json({ message: 'Category deleted successfully' });
   } catch (error: any) {
     await conn.rollback();
-    res.status(409).json({ error: error.message || 'Could not delete category' });
+    res.status(409).json({ error: 'Unable to complete this request.' });
   } finally {
     conn.release();
   }

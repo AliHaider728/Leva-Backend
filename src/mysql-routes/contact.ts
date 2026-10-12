@@ -37,7 +37,7 @@ router.post(`/`, async (req: Request, res: Response) => {
       contact: { id, name, email, subject, message, status: `New`, createdAt: now, updatedAt: now } 
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -47,7 +47,7 @@ router.get(`/`, authenticateToken, requireAdmin, async (req: Request, res: Respo
     const [rows] = await pool.execute(`SELECT ${CONTACT_COLS} FROM contacts ORDER BY createdAt DESC`);
     res.json(rows);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -73,7 +73,7 @@ router.put(`/:id/status`, authenticateToken, requireAdmin, async (req: Request, 
     const [rows] = await pool.execute(`SELECT ${CONTACT_COLS} FROM contacts WHERE id = ?`, [req.params.id]);
     res.json((rows as any)[0]);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -87,7 +87,7 @@ router.delete(`/:id`, authenticateToken, requireAdmin, async (req: Request, res:
     }
     res.json({ message: `Contact message deleted successfully` });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 

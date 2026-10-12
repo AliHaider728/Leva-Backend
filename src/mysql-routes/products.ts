@@ -1,3 +1,4 @@
+import { getFeatures } from '../config/features.js';
 import { triggerSitemapRevalidation } from '../utils/revalidateSitemap';
 import { Router, Request, Response } from 'express';
 import { pool } from '../mysql-lib/db.js';
@@ -149,7 +150,7 @@ router.get('/', authenticateIfPresent, async (req: AuthRequest, res: Response) =
     const [rows] = await pool.execute(`SELECT ${PRODUCT_COLS} FROM products ${where} ORDER BY displayOrder ASC, createdAt DESC ${limitSQL}`, params);
     res.json(await enrichProducts(pool, rows as any[]));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -185,7 +186,7 @@ router.get('/:idOrSlug/related', authenticateIfPresent, async (req: AuthRequest,
 
     res.json(await enrichProducts(pool, related));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -198,7 +199,7 @@ router.get('/:idOrSlug', authenticateIfPresent, async (req: AuthRequest, res: Re
     if (!product) return res.status(404).json({ error: 'Product not found' });
     res.json(product);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -225,7 +226,7 @@ router.put('/reorder', authenticateToken, requireAdmin, async (req: AuthRequest,
 
     res.json({ success: true, message: 'Products reordered successfully' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   }
 });
 
@@ -236,6 +237,7 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res: 
 
   try {
     const body = req.body;
+    if((body.productType==='variable'||body.variations?.length)&&!(await getFeatures(conn)).variants){await conn.rollback();return res.status(404).json({error:'Variants are not available.'});}
     if (!body.name || !body.price) {
       await conn.rollback();
       return res.status(400).json({ error: 'Product name and price are required' });
@@ -279,7 +281,7 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res: 
         id, sanitizePlain(body.name, 200), slug, sanitizePlain(body.sku, 80).toUpperCase() || null,
         price, originalPrice, discountPercent,
         body.categoryId || null,
-        sanitizePlain(body.brand, 100) || 'Alvora',
+        sanitizePlain(body.brand, 100) || 'LEVA',
         inventory.inStock ? 1 : 0,
         inventory.trackInventory ? 1 : 0,
         inventory.trackInventory ? (inventory.stockQuantity ?? null) : null,
@@ -364,7 +366,7 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res: 
   } catch (err: any) {
     await conn.rollback();
     const isConflict = /already used|duplicate/i.test(err.message) || err.code === 'ER_DUP_ENTRY';
-    res.status(isConflict ? 409 : 400).json({ error: err.message });
+    res.status(isConflict ? 409 : 400).json({ error: 'Unable to complete this request.' });
   } finally {
     conn.release();
   }
@@ -382,6 +384,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
       return res.status(404).json({ error: 'Product not found' });
     }
 
+    if((req.body.productType==='variable'||req.body.variations?.length)&&!(await getFeatures(conn)).variants){await conn.rollback();return res.status(404).json({error:'Variants are not available.'});}
     const current = (existingRows as any[])[0];
     const body = { ...parseJson(JSON.stringify(current), {}), ...req.body };
     const slug = createSlug(body.slug || body.name);
@@ -416,7 +419,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
         sanitizePlain(body.name, 200), slug, sanitizePlain(body.sku, 80).toUpperCase() || null,
         price, originalPrice, discountPercent,
         body.categoryId || current.categoryId || null,
-        sanitizePlain(body.brand, 100) || 'Alvora',
+        sanitizePlain(body.brand, 100) || 'LEVA',
         inventory.inStock ? 1 : 0, inventory.trackInventory ? 1 : 0,
         inventory.trackInventory ? (inventory.stockQuantity ?? null) : null,
         inventory.stockStatus || 'in_stock',
@@ -504,7 +507,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
   } catch (err: any) {
     await conn.rollback();
     const isConflict = /already used/i.test(err.message) || err.code === 'ER_DUP_ENTRY';
-    res.status(isConflict ? 409 : 400).json({ error: err.message });
+    res.status(isConflict ? 409 : 400).json({ error: 'Unable to complete this request.' });
   } finally {
     conn.release();
   }
@@ -528,7 +531,7 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req: Request, res:
     res.json({ message: 'Product deleted successfully' });
   } catch (err: any) {
     await conn.rollback();
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to complete this request.' });
   } finally {
     conn.release();
   }

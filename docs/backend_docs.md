@@ -1,6 +1,6 @@
-# Alvora Skincare – Backend Technical Documentation
+# LEVA Skincare – Backend Technical Documentation
 
-This document serves as a comprehensive guide to the Alvora backend (Node.js/Express + MySQL). It is designed to act as a complete handoff document for building or integrating a new frontend.
+This document serves as a comprehensive guide to the LEVA backend (Node.js/Express + MySQL). It is designed to act as a complete handoff document for building or integrating a new frontend.
 
 ---
 
@@ -19,7 +19,7 @@ This document serves as a comprehensive guide to the Alvora backend (Node.js/Exp
 
 ## 2. DATABASE SCHEMA
 
-The MySQL database (`tecnosphere_alvora`) contains the following tables:
+The MySQL database (specified by `DB_NAME`) contains the following tables:
 
 ### Core Tables
 
@@ -315,7 +315,7 @@ All routes are prefixed by the Express configuration (typically `/api/`).
 The backend expects the following environment variables (do not commit actual values to source control):
 
 ```env
-PORT=5001
+PORT=
 JWT_SECRET=
 
 # SMTP Credentials (for Order & Password Emails)
@@ -326,7 +326,7 @@ SMTP_PASS=
 SMTP_FROM=
 
 # Used for CORS and email links
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=
 
 # Cloudinary (Images)
 CLOUDINARY_CLOUD_NAME=
@@ -337,17 +337,17 @@ CLOUDINARY_API_SECRET=
 NEW_ORDER_NOTIFICATION_EMAILS=
 
 # Frontend Next.js On-Demand Revalidation Token
-REVALIDATION_SECRET=
+SITEMAP_REVALIDATION_SECRET=
 
 # Database
-MYSQL_HOST=
-MYSQL_DATABASE=
-MYSQL_USER=
-MYSQL_PASSWORD=
+DB_HOST=
+DB_NAME=
+DB_USER=
+DB_PASSWORD=
 
 # TikTok / Meta (Optional API Trackers)
 META_PIXEL_ID=
-ALVORA_META_CAPI_ACCESS_TOKEN=
+META_CAPI_ACCESS_TOKEN=
 ```
 
 ---

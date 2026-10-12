@@ -1,3 +1,4 @@
+import { requireFeature } from '../middleware/features.js';
 import { Router, Request, Response } from 'express';
 import { pool } from '../mysql-lib/db.js';
 import { authenticateToken, requireAdmin, requireSuperAdmin } from '../middleware/auth.js';
@@ -44,10 +45,10 @@ const getSettings = async () => {
       `INSERT INTO settings (id, storeName, email, phone, address, currency, freeShippingThreshold, standardShippingFee, taxRate, defaultMetaTitle, defaultMetaDescription, storefrontNavigation, homepageSections, socialLinks, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        id, 'Alvora', 'sales@alvora.pk', '', '', 'Rs.', 5000, 250, 0, '', '',
+        id, process.env.STORE_NAME?.trim() || 'LEVA', process.env.SUPPORT_EMAIL || '', process.env.SUPPORT_PHONE || '', '', 'Rs.', 5000, 250, 0, '', '',
         JSON.stringify(DEFAULT_STOREFRONT_NAVIGATION),
         JSON.stringify(DEFAULT_HOMEPAGE_SECTIONS),
-        JSON.stringify({}),
+        JSON.stringify(JSON.parse(process.env.STORE_SOCIAL_LINKS || "{}")),
         now, now
       ]
     );
@@ -114,10 +115,10 @@ const toPublicSettings = async (settings: any) => {
     storefrontNavigation: await resolvePublicNavigation(settings),
     homepageSections: normalizeStoredHomepageSections(homepageSections || []),
     socialLinks: {
-      instagram: socialLinks.instagram || 'https://www.instagram.com/alvoratoys',
-      facebook: socialLinks.facebook || 'https://facebook.com/alvoratoys',
-      youtube: socialLinks.youtube || 'https://youtube.com/@alvora',
-      tiktok: socialLinks.tiktok || 'https://tiktok.com/@alvoratoys'
+      instagram: socialLinks.instagram || '',
+      facebook: socialLinks.facebook || '',
+      youtube: socialLinks.youtube || '',
+      tiktok: socialLinks.tiktok || ''
     }
   };
 };
@@ -133,7 +134,7 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
-router.get('/routine', async (_req, res) => {
+router.get('/routine', requireFeature('routineBuilder'), async (_req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
     res.json(await getRoutineSettings());
@@ -142,10 +143,10 @@ router.get('/routine', async (_req, res) => {
   }
 });
 
-router.put('/routine', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/routine', requireFeature('routineBuilder'), authenticateToken, requireAdmin, async (req, res) => {
   let settings;
   try { settings = validateRoutineSettings(req.body); }
-  catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid routine discounts' }); }
+  catch (error) { return res.status(400).json({ error: 'Invalid routine discounts' }); }
   try { res.json(await saveRoutineSettings(settings)); }
   catch { res.status(500).json({ error: 'Could not save routine discounts. Please try again.' }); }
 });
@@ -188,7 +189,7 @@ router.put('/', authenticateToken, requireAdmin, async (req: Request, res: Respo
     const updated = await getSettings();
     res.json(await toPublicSettings(updated));
   } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid store settings' });
+    res.status(400).json({ error: 'Invalid store settings' });
   }
 });
 

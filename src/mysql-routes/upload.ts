@@ -1,3 +1,4 @@
+import { requireFeature } from '../middleware/features.js';
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { authenticateToken, requireAdmin, requireSuperAdmin } from '../middleware/auth.js';
@@ -79,13 +80,13 @@ router.post(
       });
     } catch (err: any) {
       console.error('R2 image upload failed:', err);
-      res.status(502).json({ error: `R2 image upload failed: ${err.message || String(err)}` });
+      res.status(502).json({ error: 'Image upload failed. Please try again.' });
     }
   }
 );
 
 router.post(
-  '/category-image',
+  '/category-image', requireFeature('categories'),
   authenticateToken,
   requireSuperAdmin,
   requireCloudinaryConfiguration,
@@ -103,7 +104,7 @@ router.post(
 );
 
 router.post(
-  '/review-image',
+  '/review-image', requireFeature('reviews'),
   authenticateToken,
   requireAdmin,
   requireCloudinaryConfiguration,
@@ -140,7 +141,7 @@ router.delete(
       res.json({ deleted: true });
     } catch (error) {
       console.error('Cloudinary category image deletion failed.');
-      const message = error instanceof Error && error.message.startsWith('Invalid Alvora')
+      const message = error instanceof Error && error.message.startsWith('Invalid LEVA')
         ? error.message
         : 'Cloudinary category image deletion failed';
       res.status(message.startsWith('Invalid') ? 400 : 502).json({ error: message });

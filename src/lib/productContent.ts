@@ -314,7 +314,7 @@ export const normalizeProductDetailBlocks = (value: unknown): ProductDetailBlock
       const publicId = String(imgRaw?.publicId || '').trim();
       const alt = cleanText(imgRaw?.alt, 180);
       if (secureUrl && (!/^https:\/\/res\.cloudinary\.com\//i.test(secureUrl) || !isProductDetailImagePublicId(publicId))) {
-        throw new Error('Image blocks require a valid Alvora Cloudinary image');
+        throw new Error('Image blocks require a valid LEVA Cloudinary image');
       }
       return {
         secureUrl,

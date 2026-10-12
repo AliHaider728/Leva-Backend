@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
@@ -9,7 +10,7 @@ let s3Client: S3Client | null = null;
 if (process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
   const customHandler = new NodeHttpHandler({
     httpsAgent: new https.Agent({
-      rejectUnauthorized: false,
+      rejectUnauthorized: true,
     }),
   });
 
@@ -30,11 +31,11 @@ export const r2Upload = async (buffer: Buffer, originalName: string, mimeType: s
     throw new Error('R2_CREDENTIALS_MISSING');
   }
 
-  const bucketName = process.env.R2_BUCKET_NAME || 'alvora-audio';
+  const bucketName = process.env.R2_BUCKET_NAME || '';
   const publicUrlBase = process.env.R2_PUBLIC_URL || '';
 
   const ext = originalName.split('.').pop();
-  const filename = `audio_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
+  const filename = `audio_${Date.now()}_${randomUUID()}.${ext}`;
 
   const command = new PutObjectCommand({
     Bucket: bucketName,
@@ -51,7 +52,7 @@ export const r2Upload = async (buffer: Buffer, originalName: string, mimeType: s
 export const r2Delete = async (fileUrl: string): Promise<void> => {
   if (!s3Client) return;
 
-  const bucketName = process.env.R2_BUCKET_NAME || 'alvora-audio';
+  const bucketName = process.env.R2_BUCKET_NAME || '';
   try {
     const url = new URL(fileUrl);
     const key = url.pathname.replace(/^\//, '');

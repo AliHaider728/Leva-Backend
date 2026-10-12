@@ -1,9 +1,9 @@
 export const triggerSitemapRevalidation = async () => {
   const secret = process.env.SITEMAP_REVALIDATION_SECRET;
-  const frontendUrl = process.env.FRONTEND_URL || 'https://alvora.pk';
+  const frontendUrl = process.env.FRONTEND_URL?.trim();
 
-  if (!secret) {
-    console.warn('[Sitemap] Revalidation skipped: SITEMAP_REVALIDATION_SECRET is not configured.');
+  if (!secret || !frontendUrl) {
+    console.warn('[Sitemap] Revalidation skipped: SITEMAP_REVALIDATION_SECRET or FRONTEND_URL is not configured.');
     return;
   }
 

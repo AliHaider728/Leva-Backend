@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 
-export const PRODUCT_IMAGE_FOLDER = 'alvora/products';
+export const PRODUCT_IMAGE_FOLDER = `${process.env.CLOUDINARY_FOLDER_PREFIX?.trim() || 'leva'}/products`;
 export const PRODUCT_THUMBNAIL_FOLDER = `${PRODUCT_IMAGE_FOLDER}/thumbnails`;
 export const PRODUCT_DETAIL_IMAGE_FOLDER = `${PRODUCT_IMAGE_FOLDER}/detail-content`;
-export const CATEGORY_IMAGE_FOLDER = 'alvora/categories';
-export const REVIEW_IMAGE_FOLDER = 'alvora/reviews';
+export const CATEGORY_IMAGE_FOLDER = `${process.env.CLOUDINARY_FOLDER_PREFIX?.trim() || 'leva'}/categories`;
+export const REVIEW_IMAGE_FOLDER = `${process.env.CLOUDINARY_FOLDER_PREFIX?.trim() || 'leva'}/reviews`;
 
 export const hasCloudinaryConfiguration = Boolean(
   process.env.CLOUDINARY_CLOUD_NAME &&
@@ -79,7 +79,7 @@ export const uploadReviewImage = (file: Express.Multer.File) =>
 
 export const deleteProductImage = async (publicId: string) => {
   if (!isProductImagePublicId(publicId)) {
-    throw new Error('Invalid Alvora product image public ID');
+    throw new Error('Invalid LEVA product image public ID');
   }
 
   return cloudinary.uploader.destroy(publicId, {
@@ -103,6 +103,6 @@ export const deleteProductImages = async (publicIds: string[]) => {
 };
 
 export const deleteCategoryImage = async (publicId: string) => {
-  if (!isCategoryImagePublicId(publicId)) throw new Error('Invalid Alvora category image public ID');
+  if (!isCategoryImagePublicId(publicId)) throw new Error('Invalid LEVA category image public ID');
   return cloudinary.uploader.destroy(publicId, { resource_type: 'image', invalidate: true });
 };

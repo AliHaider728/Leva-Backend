@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "env": {
+    "FRONTEND_URL": "https://leve-frontend-virid.vercel.app",
+    "CORS_ORIGINS": "https://leve-frontend-virid.vercel.app",
+    "COOKIE_NAME": "leva_admin_token",
+    "COOKIE_SECURE": "true",
+    "COOKIE_SAME_SITE": "none"
+  }
+}

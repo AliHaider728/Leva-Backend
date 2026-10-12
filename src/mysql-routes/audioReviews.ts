@@ -1,3 +1,5 @@
+import { ClientError } from '../lib/httpError.js';
+import { AUDIO_TYPES,validAudio } from '../lib/audioValidation.js';
 import express from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
@@ -6,7 +8,7 @@ import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import { uploadToR2, deleteFromR2 } from '../lib/r2.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:10*1024*1024,files:1,fields:5},fileFilter:(_req,file,callback)=>{if(!AUDIO_TYPES[file.mimetype])return callback(new ClientError('Unsupported audio type.'));callback(null,true)}});
 
 // Public GET - active only, sorted by displayOrder
 router.get('/', async (req, res) => {
@@ -47,10 +49,11 @@ router.post('/', authenticateToken, requireAdmin, upload.single('audio'), async 
       return res.status(400).json({ error: 'Customer name is required' });
     }
 
+    if(!validAudio(req.file.buffer,req.file.mimetype))return res.status(400).json({error:'Audio contents do not match a supported format.'});
     let audioUrl = '';
     try {
-      const ext = req.file.originalname.split('.').pop();
-      const filename = `reviews/audio/audio_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
+      const ext=AUDIO_TYPES[req.file.mimetype];
+      const filename = `reviews/audio/audio_${Date.now()}_${randomUUID()}.${ext}`;
       audioUrl = await uploadToR2(req.file.buffer, filename, req.file.mimetype);
     } catch (error: any) {
       console.error('Error uploading to R2:', error);

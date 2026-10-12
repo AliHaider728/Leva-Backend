@@ -1,3 +1,4 @@
+import { sessionCookieName } from '../config/sessionCookie.js';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
@@ -15,7 +16,7 @@ const parseCookies = (req: Request): Record<string, string> => {
   if (rc) {
     rc.split(';').forEach((cookie) => {
       const parts = cookie.split('=');
-      list[parts.shift()!.trim()] = decodeURIComponent(parts.join('='));
+      const key=parts.shift()!.trim();try{list[key]=decodeURIComponent(parts.join('='))}catch{list[key]=''}
     });
   }
   return list;
@@ -24,7 +25,7 @@ const parseCookies = (req: Request): Record<string, string> => {
 const getRequestToken = (req: Request) => {
   const authHeader = req.headers.authorization;
   const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-  return parseCookies(req).pb_admin_token || headerToken;
+  return parseCookies(req)[sessionCookieName()] || headerToken;
 };
 
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -63,7 +64,7 @@ export const authenticateIfPresent = (req: AuthRequest, res: Response, next: Nex
 };
 
 export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
-  console.log('[requireAdmin] Path:', req.originalUrl, 'Method:', req.method, 'User:', req.user);
+
   if (!req.user || !['admin', 'super_admin'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
   }

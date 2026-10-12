@@ -1,7 +1,7 @@
 {
-  "name": "alvora-backend",
+  "name": "leva-backend",
   "version": "1.0.0",
-  "description": "Express + MySQL API Backend for Alvora Skincare",
+  "description": "Express + MySQL API Backend for LEVA Skincare",
   "main": "dist/server.js",
   "engines": {
     "node": ">=18"
@@ -10,11 +10,13 @@
     "migrate:routine-orders": "tsx src/scripts/migrateRoutineOrders.ts",
     "migrate:bundle-gallery": "tsx src/scripts/migrateBundleGallery.ts",
     "dev": "tsx src/server.ts",
-    "build": "tsc",
+    "build": "node scripts/clean-dist.mjs && tsc",
     "backfill:product-thumbnails": "tsx src/scripts/backfillProductThumbnails.ts",
     "migrate:product-merchandising": "tsx src/scripts/migrateProductMerchandising.ts",
     "start": "node app.js",
-    "seed:reviews": "tsx src/scripts/seedReviews.ts"
+    "migrate:hardening": "tsx src/scripts/migrateHardening.ts",
+    "admin:setup": "tsx src/scripts/setAdmin.ts",
+    "test": "node tests/hardening.cjs && node tests/orders.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1127.0",
@@ -24,6 +26,8 @@
     "csv-parser": "^3.0.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
     "json2csv": "^5.0.7",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
@@ -47,4 +51,3 @@
     "typescript": "^5.4.5"
   }
 }
-

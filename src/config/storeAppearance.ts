@@ -92,7 +92,7 @@ export const DEFAULT_HOMEPAGE_SECTIONS: HomepageSectionSetting[] = [
   { key: 'categories', name: 'Shop by Category', enabled: true, order: 1, heading: 'Shop by Category', subheading: 'Browse Collections', ctaLabel: 'View All Categories', ctaLink: '/category/all' },
   { key: 'ageGroups', name: 'Shop by Skin Concern', enabled: true, order: 2, heading: 'Shop by Skin Concern', subheading: 'Find the perfect, targeted treatments designed for your specific skin needs.' },
   { key: 'featuredProducts', name: 'Featured Products', enabled: true, order: 3, heading: 'Featured Products & Bestsellers', subheading: 'Hot Picks', ctaLabel: 'Shop All Bestsellers', ctaLink: '/category/all' },
-  { key: 'brandCampaign', name: 'Play, Learn, Grow', enabled: true, order: 4, heading: 'Discover Formulas That Make Skincare Simple', subheading: 'From hydrating serums and gentle cleansers to targeted barrier repair, Alvora brings clean, scientifically-backed formulas that reveal your best skin at every age.', ctaLabel: 'Explore Skincare Favorites', ctaLink: '/category/all' },
+  { key: 'brandCampaign', name: 'LEVA Skincare', enabled: true, order: 4, heading: 'Discover Formulas That Make Skincare Simple', subheading: `From hydrating serums and gentle cleansers to targeted barrier repair, LEVA brings clean, scientifically-backed formulas that reveal your best skin at every age.`, ctaLabel: 'Explore Skincare Favorites', ctaLink: '/category/all' },
   { key: 'newArrivals', name: 'New Arrivals', enabled: true, order: 5, heading: 'New Arrivals & Restocks', subheading: 'Fresh In Store', ctaLabel: 'Browse New Additions', ctaLink: '/category/all' }
 ];
 

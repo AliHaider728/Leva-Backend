@@ -9,7 +9,7 @@ const endpoint = process.env.R2_ENDPOINT;
 
 const customHandler = new NodeHttpHandler({
   httpsAgent: new https.Agent({
-    rejectUnauthorized: false, // Bypass strict SSL handshake failure for Cloudflare R2
+    rejectUnauthorized: true,
   }),
 });
 
@@ -29,7 +29,7 @@ export const uploadToR2 = async (
   fileName: string,
   contentType: string
 ): Promise<string> => {
-  const bucketName = process.env.R2_BUCKET_NAME || 'alvora-assets';
+  const bucketName = process.env.R2_BUCKET_NAME || '';
   const publicUrlBase = process.env.R2_PUBLIC_URL || '';
 
   const command = new PutObjectCommand({
@@ -45,7 +45,7 @@ export const uploadToR2 = async (
 };
 
 export const deleteFromR2 = async (fileName: string): Promise<void> => {
-  const bucketName = process.env.R2_BUCKET_NAME || 'alvora-assets';
+  const bucketName = process.env.R2_BUCKET_NAME || '';
   const command = new DeleteObjectCommand({
     Bucket: bucketName,
     Key: fileName,

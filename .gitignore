@@ -66,3 +66,7 @@ project-analysis.md
 .idea/
 Thumbs.db
 Desktop.ini
+
+verification/
+
+!migrations/*.sql
