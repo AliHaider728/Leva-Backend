@@ -2,7 +2,7 @@
 import { pool } from '../mysql-lib/db.js';
 async function main() {
     try {
-        for (const [table, column, definition] of [['settings', 'featureFlags', 'JSON NULL'], ['users', 'resetPasswordAttempts', 'INT NOT NULL DEFAULT 0'], ['orders', 'checkoutRequestId', 'VARCHAR(120) NULL'], ['order_items', 'routineComponents', 'JSON NULL']]) {
+        for (const [table, column, definition] of [['settings', 'adminFeatures', 'JSON NULL'], ['settings', 'featureFlags', 'JSON NULL'], ['users', 'resetPasswordAttempts', 'INT NOT NULL DEFAULT 0'], ['orders', 'checkoutRequestId', 'VARCHAR(120) NULL'], ['order_items', 'routineComponents', 'JSON NULL']]) {
             const [rows]: any = await pool.query('SHOW COLUMNS FROM ' + table + ' LIKE ?', [column]);
             if (!rows.length)
                 await pool.execute('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + definition);

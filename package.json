@@ -16,7 +16,9 @@
     "start": "node app.js",
     "migrate:hardening": "tsx src/scripts/migrateHardening.ts",
     "admin:setup": "tsx src/scripts/setAdmin.ts",
-    "test": "node tests/hardening.cjs && node tests/orders.cjs"
+    "test": "node tests/hardening.cjs && node tests/orders.cjs",
+    "seed:leva-products": "tsx src/scripts/seedLevaProducts.ts",
+    "test:integration": "node tests/admin-integration.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1127.0",

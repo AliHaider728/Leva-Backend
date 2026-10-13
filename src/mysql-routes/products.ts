@@ -117,7 +117,7 @@ async function enrichProducts(conn: any, products: any[]) {
 // GET all products
 router.get('/', authenticateIfPresent, async (req: AuthRequest, res: Response) => {
   try {
-    const adminRead = ['admin', 'super_admin'].includes(req.user?.role || '');
+    const adminRead = req.headers['x-leva-storefront'] !== '1' && ['admin', 'super_admin'].includes(req.user?.role || '');
     if (adminRead) { res.set('Cache-Control', 'no-store, max-age=0'); } else { res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300'); }
     const { category, search, isVisible, limit } = req.query;
 
@@ -193,7 +193,7 @@ router.get('/:idOrSlug/related', authenticateIfPresent, async (req: AuthRequest,
 // GET single product by slug or ID
 router.get('/:idOrSlug', authenticateIfPresent, async (req: AuthRequest, res: Response) => {
   try {
-    const adminRead = ['admin', 'super_admin'].includes(req.user?.role || '');
+    const adminRead = req.headers['x-leva-storefront'] !== '1' && ['admin', 'super_admin'].includes(req.user?.role || '');
     if (adminRead) { res.set('Cache-Control', 'no-store, max-age=0'); } else { res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300'); }
     const product = await getFullProduct(pool, req.params.idOrSlug, adminRead);
     if (!product) return res.status(404).json({ error: 'Product not found' });
@@ -270,11 +270,11 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res: 
     const customCss = body.productDetailCustomCss ? String(body.productDetailCustomCss).slice(0, 10000) : null;
 
     await conn.execute(
-      `INSERT INTO products (id, name, slug, sku, price, originalPrice, discountPercent, 
-        categoryId, brand, inStock, trackInventory, stockQuantity, stockStatus, lowStockThreshold, 
-        isVisible, status, displayOrder, isFeatured, isBestseller, isNewArrival, isSpotlight, 
-        weight, deliveryType, customDeliveryFee, shortDescription, description, 
-        features, safetyInfo, specifications, tags, metaTitle, metaDescription, 
+      `INSERT INTO products (id, name, slug, sku, price, originalPrice, discountPercent,
+        categoryId, brand, inStock, trackInventory, stockQuantity, stockStatus, lowStockThreshold,
+        isVisible, status, displayOrder, isFeatured, isBestseller, isNewArrival, isSpotlight,
+        weight, deliveryType, customDeliveryFee, shortDescription, description,
+        features, safetyInfo, specifications, tags, metaTitle, metaDescription,
         productDetailBlocks, productDetailCustomCss, pricingOffers, defaultAttributes, defaultVariationId, productType, variants, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [

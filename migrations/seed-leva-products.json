@@ -1,0 +1,100 @@
+[
+  {
+    "slug": "product-01",
+    "name": "Brightening Cream",
+    "price": 6800,
+    "originalPrice": 8500,
+    "description": "A luminous daily veil created as a clean placeholder for LEVA's first formula.",
+    "shortDescription": "Softens the look of tired, dry skin.",
+    "stockQuantity": 18,
+    "brand": "LEVA",
+    "images": [
+      "/images/leva-cleansing-balm.png"
+    ],
+    "isBestseller": true,
+    "isNewArrival": false,
+    "tags": [
+      "Cream",
+      "Dullness",
+      "Uneven tone",
+      "Dryness",
+      "Dry",
+      "Normal",
+      "Combination"
+    ],
+    "specifications": {
+      "Size": "50 ML",
+      "Type": "Cream",
+      "Ingredients": "Formula details ready to be replaced with your final ingredient list.",
+      "Usage": "Massage onto clean skin in slow upward movements each morning.",
+      "FAQ": "Designed as an everyday step for all skin types. Patch test before first use.",
+      "Ritual": "The first veil"
+    },
+    "createdAt": "2026-06-01"
+  },
+  {
+    "slug": "product-02",
+    "name": "Radiance Serum",
+    "price": 7900,
+    "originalPrice": 9900,
+    "description": "A concentrated night ritual created as a clean placeholder for LEVA's second formula.",
+    "shortDescription": "Replenishes skin through the quiet hours.",
+    "stockQuantity": 12,
+    "brand": "LEVA",
+    "images": [
+      "/images/leva-radiance-serum.png"
+    ],
+    "isBestseller": false,
+    "isNewArrival": true,
+    "tags": [
+      "Serum",
+      "Dullness",
+      "Dryness",
+      "Dry",
+      "Normal",
+      "Combination",
+      "Oily"
+    ],
+    "specifications": {
+      "Size": "30 ML",
+      "Type": "Serum",
+      "Ingredients": "Formula details ready to be replaced with your final ingredient list.",
+      "Usage": "Press a few drops into skin after cleansing, then pause and breathe.",
+      "FAQ": "Use alone or follow with PRODUCT 01. Patch test before first use.",
+      "Ritual": "The quiet reset"
+    },
+    "createdAt": "2026-09-15"
+  },
+  {
+    "slug": "product-03",
+    "name": "Gentle Face Wash",
+    "price": 5400,
+    "originalPrice": 6750,
+    "description": "A precise finishing treatment created as a clean placeholder for LEVA's third formula.",
+    "shortDescription": "Targets the places that need extra care.",
+    "stockQuantity": 7,
+    "brand": "LEVA",
+    "images": [
+      "/images/leva-ritual-hero.png"
+    ],
+    "isBestseller": false,
+    "isNewArrival": false,
+    "tags": [
+      "Cleanser",
+      "Sensitivity",
+      "Oily",
+      "Combination",
+      "Normal",
+      "Sensitive"
+    ],
+    "specifications": {
+      "Size": "15 ML",
+      "Type": "Cleanser",
+      "Ingredients": "Formula details ready to be replaced with your final ingredient list.",
+      "Usage": "Tap gently where the skin asks for extra care, morning or evening.",
+      "FAQ": "Created for precise application morning or evening. Patch test before first use.",
+      "Ritual": "The final touch"
+    },
+    "createdAt": "2026-07-20"
+  }
+]

@@ -28,11 +28,11 @@ const parseJson = (val: any, fallback: any = null) => {
 router.get('/',authenticateIfPresent,async (req, res) => {
   try {
     const showAll = req.query.all === 'true';
-    if(showAll&&!['admin','super_admin'].includes((req as AuthRequest).user?.role||''))return res.status(403).json({error:'Admin privileges are required to view inactive bundles.'});
-    const query = showAll 
+    if(showAll&&(req.headers['x-leva-storefront']==='1'||!['admin','super_admin'].includes((req as AuthRequest).user?.role||'')))return res.status(403).json({error:'Admin privileges are required to view inactive bundles.'});
+    const query = showAll
       ? 'SELECT * FROM bundles ORDER BY displayOrder ASC'
       : 'SELECT * FROM bundles WHERE isActive = 1 ORDER BY displayOrder ASC';
-      
+
     const [bundles] = await pool.execute(query);
     const bundlesArray = bundles as any[];
 
@@ -57,11 +57,11 @@ router.get('/',authenticateIfPresent,async (req, res) => {
     // If products exist, fetch images and variants for them
     let imagesByProduct = new Map();
     let variantsByProduct = new Map();
-    
+
     if (productsArray.length > 0) {
       const productIds = Array.from(new Set(productsArray.map(p => p.id)));
       const pPlaceholders = productIds.map(() => '?').join(',');
-      
+
       const [images] = await pool.execute(`SELECT ${PRODUCT_IMAGE_COLS} FROM product_images WHERE product_id IN (${pPlaceholders}) ORDER BY position ASC`, productIds);
       (images as any[]).forEach(img => {
         if (!imagesByProduct.has(img.product_id)) imagesByProduct.set(img.product_id, []);
@@ -146,11 +146,11 @@ router.get('/:slug', async (req, res) => {
 
     let imagesByProduct = new Map();
     let variantsByProduct = new Map();
-    
+
     if (productsArray.length > 0) {
       const productIds = Array.from(new Set(productsArray.map(p => p.id)));
       const pPlaceholders = productIds.map(() => '?').join(',');
-      
+
       const [images] = await pool.execute(`SELECT ${PRODUCT_IMAGE_COLS} FROM product_images WHERE product_id IN (${pPlaceholders}) ORDER BY position ASC`, productIds);
       (images as any[]).forEach(img => {
         if (!imagesByProduct.has(img.product_id)) imagesByProduct.set(img.product_id, []);
@@ -177,7 +177,7 @@ router.get('/:slug', async (req, res) => {
     }));
 
     const originalTotalPrice = items.reduce((sum, item) => sum + (Number(item.price) * item.bundle_quantity), 0);
-    
+
     let currentPrice = originalTotalPrice;
     if (bundle.discountType === 'percentage') {
       currentPrice = originalTotalPrice * (1 - (Number(bundle.discountValue || bundle.discountPercent || 0) / 100));
@@ -217,7 +217,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const { name, slug, description, shortDescription, image, customImage, discountPercent, isActive, status, isBestseller, displayOrder, products, bundlePrice, discountType, discountValue, customPrice } = req.body;
-    
+
     // Validate required fields
     if (!name || !slug) {
       return res.status(400).json({ error: 'Name and slug are required' });
@@ -250,18 +250,18 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     const bundleId = randomUUID();
 
     await conn.execute(
-      `INSERT INTO bundles (id, name, slug, description, shortDescription, image, customImage, discountPercent, isActive, status, isBestseller, displayOrder, bundlePrice, discountType, discountValue, customPrice) 
+      `INSERT INTO bundles (id, name, slug, description, shortDescription, image, customImage, discountPercent, isActive, status, isBestseller, displayOrder, bundlePrice, discountType, discountValue, customPrice)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        bundleId, 
-        name, 
-        slug, 
-        description || '', 
+        bundleId,
+        name,
+        slug,
+        description || '',
         shortDescription || null,
-        image || null, 
+        image || null,
         customImage || null,
-        discountPercent || 0, 
-        isActive !== false ? 1 : 0, 
+        discountPercent || 0,
+        isActive !== false ? 1 : 0,
         status || 'published',
         isBestseller ? 1 : 0,
         nextDisplayOrder,
@@ -306,7 +306,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, slug, description, shortDescription, image, customImage, discountPercent, isActive, status, isBestseller, displayOrder, products, bundlePrice, discountType, discountValue, customPrice } = req.body;
-    
+
     const [existing] = await conn.execute('SELECT id FROM bundles WHERE id = ?', [id]);
     if ((existing as any[]).length === 0) {
       return res.status(404).json({ error: 'Bundle not found' });
@@ -358,7 +358,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
     if (discountType !== undefined) { updates.push('discountType = ?'); values.push(discountType); }
     if (discountValue !== undefined) { updates.push('discountValue = ?'); values.push(discountValue); }
     if (customPrice !== undefined) { updates.push('customPrice = ?'); values.push(customPrice); }
-    
+
     if (updates.length > 0) {
       values.push(id);
       await conn.execute(`UPDATE bundles SET ${updates.join(', ')} WHERE id = ?`, values);
@@ -367,7 +367,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
     // Only update products if explicitly provided in payload
     if (products !== undefined) {
       await conn.execute('DELETE FROM bundle_products WHERE bundle_id = ?', [id]);
-      
+
       for (const p of validProductsToInsert) {
         await conn.execute(
           'INSERT INTO bundle_products (bundle_id, product_id, quantity) VALUES (?, ?, ?)',

@@ -1,3 +1,5 @@
+import adminRoutes from './mysql-routes/admin.js';
+import { authenticateToken as adminAuthenticate, requireAdmin as adminAuthorize, authenticateIfPresent as optionalAdminAuthenticate } from './middleware/auth.js';
 import helmet from 'helmet';
 import { limiter,accountLimiter,wrapAsyncRouter,errorHandler } from './middleware/security.js';
 import featureRoutes from './mysql-routes/features.js';
@@ -36,14 +38,15 @@ app.use(helmet());
 const configuredFrontendUrl = process.env.FRONTEND_URL?.trim();
 const allowedOrigins = [...new Set([
   ...(process.env.CORS_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean),
-  ...(configuredFrontendUrl ? [configuredFrontendUrl] : [])
+  ...(configuredFrontendUrl ? [configuredFrontendUrl] : []),
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3000','http://127.0.0.1:3000'])
 ])];
 
 const corsOptions: CorsOptions = {
   origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Leva-Storefront'],
   optionsSuccessStatus: 204
 };
 
@@ -83,7 +86,7 @@ app.get('/', async (_req: Request, res: Response) => {
 app.get('/api/health', async (_req: Request, res: Response) => {
   try {
     await pool.execute('SELECT 1');
-    
+
     res.json({
       status: 'ok',
       dbConnected: true
@@ -98,11 +101,16 @@ app.get('/api/health', async (_req: Request, res: Response) => {
   }
 });
 
-for(const router of [featureRoutes,mysqlContactRoutes,mysqlCouponRoutes,mysqlSettingsRoutes,mysqlGlobalAttributeRoutes,mysqlCategoryRoutes,mysqlAuthRoutes,mysqlReviewRoutes,mysqlOrderRoutes,mysqlProductRoutes,bundlesRouter,audioReviewsRouter,uploadRoutes])wrapAsyncRouter(router);
+for(const router of [adminRoutes,featureRoutes,mysqlContactRoutes,mysqlCouponRoutes,mysqlSettingsRoutes,mysqlGlobalAttributeRoutes,mysqlCategoryRoutes,mysqlAuthRoutes,mysqlReviewRoutes,mysqlOrderRoutes,mysqlProductRoutes,bundlesRouter,audioReviewsRouter,uploadRoutes])wrapAsyncRouter(router);
 app.use('/api/orders', (req,res,next)=>req.method==='POST'?limiterForOrders(req,res,next):next());
 app.use('/api/reviews', (req,res,next)=>req.method==='POST'?limiterForReviews(req,res,next):next());
 app.use('/api/contact', (req,res,next)=>req.method==='POST'?limiterForContact(req,res,next):next());
 app.post('/api/coupons/validate',limiterForCoupons);
+app.use('/api', (req:any,res,next)=>{
+ if(req.headers['x-leva-admin-request']==='1')return adminAuthenticate(req,res,()=>adminAuthorize(req,res,next));
+ optionalAdminAuthenticate(req,res,()=>{const isAdmin=['admin','super_admin'].includes(req.user?.role);const publicRead=['GET','HEAD'].includes(req.method)&&req.headers['x-leva-storefront']==='1'&&!req.path.includes('/admin')&&req.query.all!=='true'&&/^\/(products|bundles|settings|categories|global-attributes|reviews\/product|audio-reviews)(\/|$)/.test(req.path);const publicWrite=req.method==='POST'&&['/orders','/contact','/reviews','/coupons/validate','/auth/login','/auth/logout','/auth/register','/auth/forgot-password','/auth/reset-password'].includes(req.path);if(isAdmin&&!publicWrite&&!publicRead)return adminAuthorize(req,res,next);next();});
+});
+app.use('/api/admin',adminRoutes);
 app.use('/api/features',featureRoutes);
 app.use('/api/contact',requireFeature('contact'), mysqlContactRoutes);
 app.use('/api/coupons',requireFeature('coupons'), mysqlCouponRoutes);
@@ -174,7 +182,7 @@ if (
     const server = app.listen(port, async () => {
       try {
         await pool.execute('SELECT 1');
-        
+
         const [[{ count: products }]] = await pool.execute<any>('SELECT COUNT(*) as count FROM products');
         const [[{ count: reviews }]] = await pool.execute<any>('SELECT COUNT(*) as count FROM reviews');
         const [[{ count: orders }]] = await pool.execute<any>('SELECT COUNT(*) as count FROM orders');

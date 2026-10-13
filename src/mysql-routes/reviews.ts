@@ -160,7 +160,7 @@ router.post('/admin', authenticateToken, requireAdmin, async (req: AuthRequest, 
     await pool.execute(
       `INSERT INTO reviews (id, productId, productName, reviewerName, rating, title, content, avatarUrl, imageUrl, imagePublicId, status, source, verifiedPurchase, approvedAt, approvedBy, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, productId, productName || '', reviewerName, Number(rating), title || null, content, avatarUrl || null, imageUrl || null, imagePublicId || null, 'approved', 'admin', verifiedPurchase ? 1 : 0, now, req.user?.email || 'admin', now, now]
+      [id, productId, productName || '', reviewerName, Number(rating), title || null, content, avatarUrl || null, imageUrl || null, imagePublicId || null, 'approved', 'admin', verifiedPurchase ? 1 : 0, now, req.user?.userId || null, now, now]
     );
 
     await recalculateProductReviewSummary(productId);
@@ -178,7 +178,7 @@ router.put('/:id/approve', authenticateToken, requireAdmin, async (req: AuthRequ
     const now = new Date();
     await pool.execute(
       'UPDATE reviews SET status = ?, approvedAt = ?, approvedBy = ?, updatedAt = ? WHERE id = ?',
-      ['approved', now, req.user?.email || 'admin', now, req.params.id]
+      ['approved', now, req.user?.userId || null, now, req.params.id]
     );
 
     const [rows] = await pool.execute(`SELECT ${REVIEW_COLS_ADMIN} FROM reviews WHERE id = ?`, [req.params.id]);

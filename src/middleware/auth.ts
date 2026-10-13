@@ -1,3 +1,4 @@
+import { enforceAdminModule } from './adminModules.js';
 import { sessionCookieName } from '../config/sessionCookie.js';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
@@ -68,12 +69,12 @@ export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction
   if (!req.user || !['admin', 'super_admin'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
   }
-  next();
+  void enforceAdminModule(req,res,next);
 };
 
 export const requireSuperAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
   if (!req.user || req.user.role !== 'super_admin') {
     return res.status(403).json({ error: 'Access denied. Super Admin privileges required.' });
   }
-  next();
+  void enforceAdminModule(req,res,next);
 };

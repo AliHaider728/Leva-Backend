@@ -300,6 +300,7 @@ CREATE TABLE IF NOT EXISTS `settings` (
   `storefrontNavigation` JSON,
   `homepageSections` JSON,
   `socialLinks` JSON,
+  `adminFeatures` JSON,
   `featureFlags` JSON,
   createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -30,7 +30,7 @@ router.get('/', async (_req: Request, res: Response) => {
 
 router.get('/admin/all', authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
   try {
-    const [rows] = await pool.execute(`SELECT ${CATEGORY_COLS} FROM categories ORDER BY displayOrder ASC, name ASC`);
+    const [rows] = await pool.execute(`SELECT ${CATEGORY_COLS}, (SELECT COUNT(*) FROM product_categories pc WHERE pc.category_id=categories.id) itemCount FROM categories ORDER BY displayOrder ASC, name ASC`);
     res.json(buildTree(rows as any[]));
   } catch (error) {
     fs.appendFileSync('debug.log', 'CAT ERROR: ' + ((error as any).stack || String(error)) + '\n'); res.status(500).json({ error: 'Could not load categories' });
@@ -40,7 +40,7 @@ router.get('/admin/all', authenticateToken, requireAdmin, async (_req: Request, 
 router.post('/', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { name, slug, description, parentId, image, status, displayOrder, isFeatured } = req.body;
-    
+
     if (!name || !slug) return res.status(400).json({ error: 'Name and slug are required' });
 
     const [existing] = await pool.execute('SELECT id FROM categories WHERE slug = ?', [slug.toLowerCase()]);
@@ -58,8 +58,8 @@ router.post('/', authenticateToken, requireAdmin, async (req: Request, res: Resp
       `INSERT INTO categories (id, name, slug, description, parentId, image, status, displayOrder, isFeatured, level, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        id, name, slug.toLowerCase(), description || null, parentId || null, 
-        image ? JSON.stringify(image) : null, status || 'active', 
+        id, name, slug.toLowerCase(), description || null, parentId || null,
+        image ? JSON.stringify(image) : null, status || 'active',
         displayOrder || 0, isFeatured ? 1 : 0, parentId ? 1 : 0, now, now
       ]
     );
@@ -84,7 +84,7 @@ router.get('/:id/delete-impact', authenticateToken, requireAdmin, async (req: Re
       const nav = typeof setting.storefrontNavigation === 'string' ? JSON.parse(setting.storefrontNavigation) : setting.storefrontNavigation;
       inNavigation = nav.some((n: any) => n.categoryId === req.params.id);
     }
-    
+
     res.json({ productsAffected, inNavigation });
   } catch (error) {
     res.status(500).json({ error: 'Could not get category impact' });
@@ -93,8 +93,8 @@ router.get('/:id/delete-impact', authenticateToken, requireAdmin, async (req: Re
 
 router.put('/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { name, slug, description, parentId, status, displayOrder, isFeatured } = req.body;
-    
+    const { name, slug, description, parentId, image, status, displayOrder, isFeatured } = req.body;
+
     const [existing] = await pool.execute(`SELECT ${CATEGORY_COLS} FROM categories WHERE id = ?`, [req.params.id]);
     if ((existing as any[]).length === 0) return res.status(404).json({ error: 'Category not found' });
 
@@ -108,12 +108,12 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: Request, res: Re
     }
 
     await pool.execute(
-      `UPDATE categories 
+      `UPDATE categories
        SET name = COALESCE(?, name), slug = COALESCE(?, slug), description = COALESCE(?, description),
-           parentId = ?, status = COALESCE(?, status), displayOrder = COALESCE(?, displayOrder),
+           parentId = ?, image = COALESCE(?, image), status = COALESCE(?, status), displayOrder = COALESCE(?, displayOrder),
            isFeatured = COALESCE(?, isFeatured), updatedAt = ?
        WHERE id = ?`,
-      [name || null, slug ? slug.toLowerCase() : null, description || null, parentId || null, status || null, displayOrder ?? null, isFeatured !== undefined ? (isFeatured ? 1 : 0) : null, new Date(), req.params.id]
+      [name || null, slug ? slug.toLowerCase() : null, description || null, parentId || null, image !== undefined ? JSON.stringify(image) : null, status || null, displayOrder ?? null, isFeatured !== undefined ? (isFeatured ? 1 : 0) : null, new Date(), req.params.id]
     );
 
     const [updated] = await pool.execute(`SELECT ${CATEGORY_COLS} FROM categories WHERE id = ?`, [req.params.id]);
@@ -127,7 +127,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: Request, res: Re
 // DELETE WITH ATOMIC TRANSACTION
 router.delete('/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   const { resolution, navigationResolution, targetCategoryId } = req.body;
-  
+
   const conn = await pool.getConnection();
   await conn.beginTransaction();
 
@@ -145,7 +145,7 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req: Request, res:
       }
       // Reassign all products mapped to this category to the target category
       await conn.execute(
-        `INSERT IGNORE INTO product_categories (product_id, category_id) 
+        `INSERT IGNORE INTO product_categories (product_id, category_id)
          SELECT product_id, ? FROM product_categories WHERE category_id = ?`,
         [targetCategoryId, req.params.id]
       );
@@ -160,12 +160,12 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req: Request, res:
     const [settingsRows] = await conn.execute('SELECT id, storefrontNavigation FROM settings LIMIT 1');
     const setting = (settingsRows as any[])[0];
     if (setting) {
-      let nav = typeof setting.storefrontNavigation === 'string' 
-        ? JSON.parse(setting.storefrontNavigation) 
+      let nav = typeof setting.storefrontNavigation === 'string'
+        ? JSON.parse(setting.storefrontNavigation)
         : setting.storefrontNavigation || [];
-      
+
       const inNav = nav.some((n: any) => n.categoryId === req.params.id);
-      
+
       if (inNav) {
         if (navigationResolution === 'reassign') {
           nav = nav.map((n: any) => n.categoryId === req.params.id ? { ...n, categoryId: targetCategoryId } : n);
@@ -180,7 +180,7 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req: Request, res:
 
     // Now delete the category itself. MySQL schema handles SET NULL for child parentId and CASCADE for product_categories!
     await conn.execute('DELETE FROM categories WHERE id = ?', [req.params.id]);
-    
+
     await conn.commit();
     triggerSitemapRevalidation();
     res.json({ message: 'Category deleted successfully' });
