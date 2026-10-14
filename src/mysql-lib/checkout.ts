@@ -6,35 +6,45 @@ import { resolveRoutineOrder } from './routineOrders.js';
 import { getFeatures, type Features } from '../config/features.js';
 const bool = (value: any) => value === true || value === 1 || value === '1';
 const parse = (value: any) => typeof value === 'string' ? JSON.parse(value) : value;
-const amount = (value: any) => { const n = Number(value); if (!Number.isFinite(n) || n < 0)
-    throw new ClientError('A stored price is invalid. Please contact support.', 503); return n; };
-export function bundlePrice(bundle: any, subtotal: number) { const discount = amount(bundle.discountValue ?? bundle.discountPercent ?? 0); let price = subtotal; if (bundle.discountType === 'percentage' || !bundle.discountType)
-    price = subtotal * (1 - Math.min(100, Number(bundle.discountValue || bundle.discountPercent || 0)) / 100);
-else if (bundle.discountType === 'fixed')
-    price = Math.max(0, subtotal - discount);
-else if (bundle.discountType === 'custom')
-    price = amount(bundle.customPrice ?? bundle.bundlePrice ?? subtotal); return roundMoney(amount(price)); }
-export function couponSavings(coupon: any, subtotal: number) { if (!coupon || !bool(coupon.isActive) || subtotal < amount(coupon.minPurchase || 0) || (coupon.usageLimit != null && Number(coupon.usageCount) >= Number(coupon.usageLimit)))
-    throw new ClientError('Your coupon is no longer valid.'); const value = amount(coupon.discountValue); if (!['percentage', 'fixed', 'flat'].includes(coupon.discountType))
-    throw new ClientError('Your coupon is no longer valid.'); return roundMoney(Math.min(subtotal, coupon.discountType === 'percentage' ? subtotal * Math.min(value, 100) / 100 : value)); }
-async function reserve(conn: any, product: any, qty: number, variant: any = null) { const row = variant || product; const tracked = bool(variant ? row.manageStock : row.trackInventory); if ((variant && (!bool(row.enabled) || row.stockStatus === 'out_of_stock')) || (!variant && !bool(product.inStock)) || (tracked && Number(row.stockQuantity) < qty))
-    throw new ClientError(product.name + ' is out of stock.'); if (tracked) {
-    const table = variant ? 'product_variants' : 'products';
-    const [result] = await conn.execute('UPDATE ' + table + ' SET stockQuantity=stockQuantity-? WHERE id=? AND stockQuantity>=?', [qty, row.id, qty]);
-    if (!result.affectedRows)
-        throw new ClientError(product.name + ' ran out of stock.');
-} return tracked; }
-async function productLine(conn: any, input: any, qty: number, features: Features) { const [rows] = await conn.execute('SELECT id,name,price,inStock,trackInventory,stockQuantity,status,isVisible,productType,pricingOffers FROM products WHERE id=? FOR UPDATE', [input.productId]); const product = rows[0]; if (!product || product.status === 'draft' || !bool(product.isVisible))
-    throw new ClientError('A product is no longer available.'); let variant: any = null; let base = amount(product.price); if (product.productType === 'variable') {
-    if (!features.variants)
-        throw new ClientError('Variants are not available.', 404);
-    const [variants] = await conn.execute('SELECT id,regularPrice,salePrice,enabled,manageStock,stockQuantity,stockStatus,attributes FROM product_variants WHERE id=? AND product_id=? FOR UPDATE', [input.variationId || '', product.id]);
-    variant = variants[0];
-    if (!variant)
-        throw new ClientError('Choose a valid product option.');
-    base = amount(variant.salePrice ?? variant.regularPrice);
-} const pricing = resolveCartLine(parse(product.pricingOffers), base, qty); const quantity = qty + Number(pricing.freeUnits || 0); if (!Number.isSafeInteger(quantity) || quantity < 1)
-    throw new ClientError('Invalid product quantity.'); const tracked = await reserve(conn, product, quantity, variant); return { product, variant, price: roundMoney(amount(pricing.unitPrice)), component: { productId: product.id, name: product.name, quantity, unitPrice: roundMoney(amount(pricing.unitPrice)), variationId: variant?.id || null, trackInventory: !variant && tracked, variantTracked: !!variant && tracked } }; }
+const amount = (value: any) => {
+    const n = Number(value); if (!Number.isFinite(n) || n < 0)
+        throw new ClientError('A stored price is invalid. Please contact support.', 503); return n;
+};
+export function bundlePrice(bundle: any, subtotal: number) {
+    const discount = amount(bundle.discountValue ?? bundle.discountPercent ?? 0); let price = subtotal; if (bundle.discountType === 'percentage' || !bundle.discountType)
+        price = subtotal * (1 - Math.min(100, Number(bundle.discountValue || bundle.discountPercent || 0)) / 100);
+    else if (bundle.discountType === 'fixed')
+        price = Math.max(0, subtotal - discount);
+    else if (bundle.discountType === 'custom')
+        price = amount(bundle.customPrice ?? bundle.bundlePrice ?? subtotal); return roundMoney(amount(price));
+}
+export function couponSavings(coupon: any, subtotal: number) {
+    if (!coupon || !bool(coupon.isActive) || subtotal < amount(coupon.minPurchase || 0) || (coupon.usageLimit != null && Number(coupon.usageCount) >= Number(coupon.usageLimit)))
+        throw new ClientError('Your coupon is no longer valid.'); const value = amount(coupon.discountValue); if (!['percentage', 'fixed', 'flat'].includes(coupon.discountType))
+        throw new ClientError('Your coupon is no longer valid.'); return roundMoney(Math.min(subtotal, coupon.discountType === 'percentage' ? subtotal * Math.min(value, 100) / 100 : value));
+}
+async function reserve(conn: any, product: any, qty: number, variant: any = null) {
+    const row = variant || product; const tracked = bool(variant ? row.manageStock : row.trackInventory); if ((variant && (!bool(row.enabled) || row.stockStatus === 'out_of_stock')) || (!variant && !bool(product.inStock)) || (tracked && Number(row.stockQuantity) < qty))
+        throw new ClientError(product.name + ' is out of stock.'); if (tracked) {
+            const table = variant ? 'product_variants' : 'products';
+            const [result] = await conn.execute('UPDATE ' + table + ' SET stockQuantity=stockQuantity-? WHERE id=? AND stockQuantity>=?', [qty, row.id, qty]);
+            if (!result.affectedRows)
+                throw new ClientError(product.name + ' ran out of stock.');
+        } return tracked;
+}
+async function productLine(conn: any, input: any, qty: number, features: Features) {
+    const [rows] = await conn.execute('SELECT id,name,price,inStock,trackInventory,stockQuantity,status,isVisible,productType,pricingOffers FROM products WHERE id=? FOR UPDATE', [input.productId]); const product = rows[0]; if (!product || product.status === 'draft' || !bool(product.isVisible))
+        throw new ClientError('A product is no longer available.'); let variant: any = null; let base = amount(product.price); if (product.productType === 'variable') {
+            if (!features.variants)
+                throw new ClientError('Variants are not available.', 404);
+            const [variants] = await conn.execute('SELECT id,regularPrice,salePrice,enabled,manageStock,stockQuantity,stockStatus,attributes FROM product_variants WHERE id=? AND product_id=? FOR UPDATE', [input.variationId || '', product.id]);
+            variant = variants[0];
+            if (!variant)
+                throw new ClientError('Choose a valid product option.');
+            base = amount(variant.salePrice ?? variant.regularPrice);
+        } const pricing = resolveCartLine(parse(product.pricingOffers), base, qty); const quantity = qty + Number(pricing.freeUnits || 0); if (!Number.isSafeInteger(quantity) || quantity < 1)
+        throw new ClientError('Invalid product quantity.'); const tracked = await reserve(conn, product, quantity, variant); return { product, variant, price: roundMoney(amount(pricing.unitPrice)), component: { productId: product.id, name: product.name, quantity, unitPrice: roundMoney(amount(pricing.unitPrice)), variationId: variant?.id || null, trackInventory: !variant && tracked, variantTracked: !!variant && tracked } };
+}
 export async function calculateCheckout(conn: any, items: any[], couponCode: string) {
     const features = await getFeatures(conn);
     const canonicalItems: any[] = [];
