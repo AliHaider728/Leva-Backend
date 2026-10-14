@@ -96,12 +96,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     res.status(503).json({
       status: 'error',
       dbConnected: false,
-      error: 'Database connection unavailable',
-      message: err?.message,
-      code: err?.code,
-      host: process.env.DB_HOST || process.env.LEVA_MYSQL_HOST,
-      database: process.env.DB_NAME || process.env.LEVA_MYSQL_DATABASE,
-      user: process.env.DB_USER || process.env.LEVA_MYSQL_USER
+      error: 'Database connection unavailable'
     });
   }
 });
