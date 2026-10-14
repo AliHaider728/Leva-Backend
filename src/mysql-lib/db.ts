@@ -1,18 +1,19 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 
-
-
-
-
 dotenv.config();
 
+const clean = (val?: string) => {
+  if (!val) return undefined;
+  return val.trim().replace(/^['"]|['"]$/g, '').trim();
+};
+
 const MYSQL_CONFIG: mysql.PoolOptions = {
-  host: (process.env.DB_HOST || process.env.LEVA_MYSQL_HOST),
-  port: Number(process.env.DB_PORT || process.env.LEVA_MYSQL_PORT || 3306),
-  user: (process.env.DB_USER || process.env.LEVA_MYSQL_USER),
-  password: (process.env.DB_PASSWORD || process.env.LEVA_MYSQL_PASSWORD),
-  database: (process.env.DB_NAME || process.env.LEVA_MYSQL_DATABASE),
+  host: clean(process.env.DB_HOST || process.env.LEVA_MYSQL_HOST),
+  port: Number(clean(process.env.DB_PORT || process.env.LEVA_MYSQL_PORT) || 3306),
+  user: clean(process.env.DB_USER || process.env.LEVA_MYSQL_USER),
+  password: clean(process.env.DB_PASSWORD || process.env.LEVA_MYSQL_PASSWORD),
+  database: clean(process.env.DB_NAME || process.env.LEVA_MYSQL_DATABASE),
   connectTimeout: 10000,
   waitForConnections: true,
   connectionLimit: 10,
