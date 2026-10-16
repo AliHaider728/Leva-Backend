@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 
 const storeName = () => process.env.STORE_NAME?.trim() || 'LEVA';
-const supportEmail = () => process.env.SUPPORT_EMAIL?.trim() || '';
+const supportEmail = () => process.env.SUPPORT_EMAIL?.trim() || 'sales@leva.pk';
 
 const REQUIRED_SMTP_ENVIRONMENT_VARIABLES = [
   'SMTP_HOST',
@@ -179,12 +179,12 @@ export const emailBrandFooter = (): string => {
 const sendEmail = async (to: string, content: EmailContent): Promise<EmailDispatchResult> => {
   try {
     const info = await createTransporter().sendMail({
-      from: cleanEnv(process.env.SMTP_FROM),
+      from: cleanEnv(process.env.SMTP_FROM) || 'LEVA <sales@leva.pk>',
       to,
       subject: content.subject,
       html: content.html,
       text: content.text,
-      replyTo: cleanEnv(supportEmail()) || undefined
+      replyTo: cleanEnv(supportEmail()) || 'sales@leva.pk'
     });
     const acceptedCount = Array.isArray(info.accepted) ? info.accepted.length : 0;
     const rejectedCount = Array.isArray(info.rejected) ? info.rejected.length : 0;
