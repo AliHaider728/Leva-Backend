@@ -36,7 +36,6 @@ const seedBundles: SeedBundle[] = [
     name: 'The Duo',
     slug: 'the-essentials',
     description: 'The brightening cream and tinted sunscreen, paired for a daytime ritual.',
-    image: '/images/leva-complete-ritual-bundle.webp',
     discountType: 'percentage',
     discountValue: 10,
     discountPercent: 10,
