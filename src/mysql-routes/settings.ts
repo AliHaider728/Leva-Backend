@@ -11,7 +11,7 @@ import {
 } from '../config/storeAppearance.js';
 import crypto from 'crypto';
 import { getRoutineSettings, saveRoutineSettings } from '../mysql-lib/routineSettings.js';
-import { validateRoutineSettings } from '../lib/routineDiscount.js';
+import { DEFAULT_ROUTINE_DISCOUNT, validateRoutineSettings } from '../lib/routineDiscount.js';
 
 const SETTINGS_COLS = 'id, storeName, email, phone, address, currency, freeShippingThreshold, standardShippingFee, taxRate, defaultMetaTitle, defaultMetaDescription, storefrontNavigation, homepageSections, socialLinks, createdAt, updatedAt';
 
@@ -97,22 +97,36 @@ const resolvePublicNavigation = async (settings: any) => {
 };
 
 const toPublicSettings = async (settings: any) => {
-  const socialLinks = jsonValue(settings.socialLinks, {});
-  const homepageSections = jsonValue(settings.homepageSections, []);
+  const socialLinks = jsonValue(settings?.socialLinks, {});
+  const homepageSections = jsonValue(settings?.homepageSections, []);
+
+  let routineDiscount: any;
+  try {
+    routineDiscount = await getRoutineSettings();
+  } catch {
+    routineDiscount = validateRoutineSettings(DEFAULT_ROUTINE_DISCOUNT);
+  }
+
+  let storefrontNavigation: any;
+  try {
+    storefrontNavigation = await resolvePublicNavigation(settings);
+  } catch {
+    storefrontNavigation = normalizeStoredNavigation(DEFAULT_STOREFRONT_NAVIGATION);
+  }
 
   return {
-    storeName: settings.storeName,
-    routineDiscount: await getRoutineSettings(),
-    email: settings.email,
-    phone: settings.phone,
-    address: settings.address,
-    currency: settings.currency,
-    freeShippingThreshold: Number(settings.freeShippingThreshold) || 0,
-    standardShippingFee: Number(settings.standardShippingFee) || 0,
-    taxRate: Number(settings.taxRate) || 0,
-    metaTitle: settings.defaultMetaTitle,
-    metaDescription: settings.defaultMetaDescription,
-    storefrontNavigation: await resolvePublicNavigation(settings),
+    storeName: settings?.storeName || process.env.STORE_NAME?.trim() || 'LEVA',
+    routineDiscount,
+    email: settings?.email || process.env.SUPPORT_EMAIL || 'care@leva.pk',
+    phone: settings?.phone || process.env.SUPPORT_PHONE || '',
+    address: settings?.address || '',
+    currency: settings?.currency || 'Rs.',
+    freeShippingThreshold: Number(settings?.freeShippingThreshold) || 3500,
+    standardShippingFee: Number(settings?.standardShippingFee) || 250,
+    taxRate: Number(settings?.taxRate) || 0,
+    metaTitle: settings?.defaultMetaTitle || 'LEVA - Clean Skincare',
+    metaDescription: settings?.defaultMetaDescription || 'Science-backed skincare rituals for healthy, glowing skin.',
+    storefrontNavigation,
     homepageSections: normalizeStoredHomepageSections(homepageSections || []),
     socialLinks: {
       instagram: socialLinks.instagram || '',

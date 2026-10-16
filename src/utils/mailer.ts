@@ -109,6 +109,73 @@ const formatDeliveryDate = (value: unknown) => {
   });
 };
 
+/**
+ * Resolves the official LEVA brand logo URL for transactional email templates.
+ * Uses high-availability Cloudflare R2 CDN url as primary, with storefront/custom overrides.
+ */
+export const getLogoUrl = (): string => {
+  const custom = cleanEnv(process.env.LOGO_URL);
+  if (custom) return custom;
+  const r2 = cleanEnv(process.env.R2_PUBLIC_URL);
+  if (r2) return `${r2.replace(/\/$/, '')}/LEVA-logo.png`;
+  const frontend = cleanEnv(process.env.FRONTEND_URL).split(',')[0]?.trim();
+  if (frontend && /^https?:\/\//i.test(frontend)) {
+    return `${frontend.replace(/\/$/, '')}/images/LEVA-logo.png`;
+  }
+  return 'https://pub-a072adc556d047e0bacc05300ca63f83.r2.dev/LEVA-logo.png';
+};
+
+/**
+ * Resolves primary storefront URL for links in email templates.
+ */
+export const getStorefrontUrl = (): string => {
+  const raw = cleanEnv(process.env.FRONTEND_URL);
+  if (!raw) return 'https://leva.pk';
+  const first = raw.split(',')[0]?.trim();
+  return (first && /^https?:\/\//i.test(first)) ? first.replace(/\/$/, '') : 'https://leva.pk';
+};
+
+/**
+ * Standardized, email-client-safe header displaying the official LEVA brand logo.
+ * Designed with HTML tables, explicit dimensions, inline styles, and alt text
+ * for 100% compatibility across Outlook, Gmail, Apple Mail, and web clients.
+ */
+export const emailBrandHeader = (subtitle?: string): string => {
+  const logo = getLogoUrl();
+  const store = escapeHtml(storeName());
+  const storeUrl = escapeHtml(getStorefrontUrl());
+  return `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ffffff;border-bottom:1px solid #f1f5f9;">
+      <tr>
+        <td align="center" style="padding:28px 24px 20px;">
+          <a href="${storeUrl}" target="_blank" style="text-decoration:none;display:inline-block;">
+            <img src="${escapeHtml(logo)}" alt="${store}" width="100" height="100" style="display:block;max-width:100px;width:100px;height:auto;margin:0 auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />
+          </a>
+          ${subtitle ? `<p style="color:#64748b;margin:12px 0 0;font-size:14px;font-weight:500;letter-spacing:0.5px;">${escapeHtml(subtitle)}</p>` : ''}
+        </td>
+      </tr>
+    </table>
+  `;
+};
+
+/**
+ * Standardized, email-client-safe footer.
+ */
+export const emailBrandFooter = (): string => {
+  const store = escapeHtml(storeName());
+  const email = escapeHtml(supportEmail());
+  return `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;border-top:1px solid #f1f5f9;">
+      <tr>
+        <td align="center" style="padding:20px 24px;color:#94a3b8;font-size:12px;font-family:Arial,sans-serif;line-height:1.5;">
+          <p style="margin:0 0 4px;font-weight:600;color:#64748b;">${store} Skincare</p>
+          <p style="margin:0;">Customer Support: <a href="mailto:${email}" style="color:#e11d48;text-decoration:none;">${email}</a></p>
+        </td>
+      </tr>
+    </table>
+  `;
+};
+
 const sendEmail = async (to: string, content: EmailContent): Promise<EmailDispatchResult> => {
   try {
     const info = await createTransporter().sendMail({
@@ -177,9 +244,8 @@ export const buildOrderDeliveredEmail = (order: any): EmailContent => {
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:24px 12px;">
         <tr><td align="center">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden;">
-            <tr><td style="background:#ffffff;padding:36px 28px 24px;text-align:center;border-bottom:1px solid #f1f5f9;">
-
-              <p style="color:#64748b;margin:0;font-size:15px;font-weight:500;letter-spacing:0.5px;">Delivered with smiles</p>
+            <tr><td style="background:#ffffff;padding:0;text-align:center;">
+              ${emailBrandHeader('Delivered with smiles')}
             </td></tr>
             <tr><td style="padding:32px 28px;">
               <h2 style="color:#0f172a;font-size:24px;margin:0 0 16px;">Your order has been delivered!</h2>
@@ -200,7 +266,7 @@ export const buildOrderDeliveredEmail = (order: any): EmailContent => {
               <p style="line-height:1.6;margin:0 0 12px;">If anything is missing or damaged, reply to this email or contact <a href="mailto:${escapeHtml(supportEmail())}" style="color:#e11d48;">${escapeHtml(supportEmail())}</a>.</p>
               <p style="line-height:1.6;margin:0;">Thank you for choosing ${escapeHtml(storeName())}!</p>
             </td></tr>
-            <tr><td style="background:#f8fafc;padding:18px 28px;text-align:center;color:#94a3b8;font-size:12px;">${escapeHtml(storeName())} · Customer Support: ${escapeHtml(supportEmail())}</td></tr>
+            <tr><td>${emailBrandFooter()}</td></tr>
           </table>
         </td></tr>
       </table>
@@ -262,9 +328,8 @@ export const buildOrderConfirmationEmail = (order: any, options?: { isNewAccount
   <html lang="en"><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#334155;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden;">
-        <tr><td style="background:#ffffff;padding:36px 28px 24px;text-align:center;border-bottom:1px solid #f1f5f9;">
-
-          <p style="color:#64748b;margin:0;font-size:15px;font-weight:500;letter-spacing:0.5px;">Healthy Skin. Naturally You.</p>
+        <tr><td style="background:#ffffff;padding:0;text-align:center;">
+          ${emailBrandHeader('Healthy Skin. Naturally You.')}
         </td></tr>
         <tr><td style="padding:32px 28px;">
           <h2 style="color:#0f172a;font-size:24px;margin:0 0 16px;">Your order is confirmed!</h2>
@@ -285,10 +350,10 @@ export const buildOrderConfirmationEmail = (order: any, options?: { isNewAccount
             <tr><td style="padding:10px 0 0;color:#0f172a;font-size:17px;font-weight:800;">Final total</td><td style="padding:10px 0 0;text-align:right;color:#e11d48;font-size:19px;font-weight:900;">${formatPkr(order.total)}</td></tr>
           </table>
           <div style="background:#f8fafc;border-radius:14px;padding:16px;margin-bottom:22px;"><h3 style="color:#0f172a;font-size:16px;margin:0 0 8px;">Delivery address</h3><p style="margin:0;line-height:1.6;color:#334155;"><strong>${escapeHtml(address.fullName || customerName)}</strong><br/>${escapeHtml(fullAddress)}${contactPhone ? `<br/>Phone: ${escapeHtml(contactPhone)}` : ''}</p></div>
-          ${options?.isNewAccount ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:14px;padding:16px;margin-bottom:22px;"><h3 style="color:#b45309;font-size:16px;margin:0 0 8px;">Your ${escapeHtml(storeName())} account has been created</h3><p style="margin:0 0 12px;line-height:1.6;color:#92400e;">A ${escapeHtml(storeName())} account has been created for you automatically. You are already signed in on this device, so you can start managing your orders immediately. A temporary password has also been generated for future sign-ins. For security, you can change it anytime from the Password section in your Profile.</p><p style="margin:0 0 4px;color:#92400e;"><strong>Email:</strong> ${escapeHtml(String(order.email || ''))}</p><p style="margin:0 0 16px;color:#92400e;"><strong>Temporary Password:</strong> ${escapeHtml(options.rawPassword || '')}</p><a href="${process.env.FRONTEND_URL || ''}/profile" style="display:inline-block;background:#d97706;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:bold;">View Your Profile</a></div>` : (options?.isNewAccount === false ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:16px;margin-bottom:22px;"><h3 style="color:#15803d;font-size:16px;margin:0 0 8px;">Track your order</h3><p style="margin:0 0 12px;line-height:1.6;color:#166534;">You already have an account with us. Log in with your existing credentials to track this order.</p><a href="${process.env.FRONTEND_URL || ''}/login" style="display:inline-block;background:#15803d;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:bold;">Log In to Track Order</a></div>` : '')}
+          ${options?.isNewAccount ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:14px;padding:16px;margin-bottom:22px;"><h3 style="color:#b45309;font-size:16px;margin:0 0 8px;">Your ${escapeHtml(storeName())} account has been created</h3><p style="margin:0 0 12px;line-height:1.6;color:#92400e;">A ${escapeHtml(storeName())} account has been created for you automatically. You are already signed in on this device, so you can start managing your orders immediately. A temporary password has also been generated for future sign-ins. For security, you can change it anytime from the Password section in your Profile.</p><p style="margin:0 0 4px;color:#92400e;"><strong>Email:</strong> ${escapeHtml(String(order.email || ''))}</p><p style="margin:0 0 16px;color:#92400e;"><strong>Temporary Password:</strong> ${escapeHtml(options.rawPassword || '')}</p><a href="${getStorefrontUrl()}/profile" style="display:inline-block;background:#d97706;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:bold;">View Your Profile</a></div>` : (options?.isNewAccount === false ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:16px;margin-bottom:22px;"><h3 style="color:#15803d;font-size:16px;margin:0 0 8px;">Track your order</h3><p style="margin:0 0 12px;line-height:1.6;color:#166534;">You already have an account with us. Log in with your existing credentials to track this order.</p><a href="${getStorefrontUrl()}/login" style="display:inline-block;background:#15803d;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:bold;">Log In to Track Order</a></div>` : '')}
           <p style="line-height:1.6;margin:0 0 12px;">Questions about your order? Reply to this email or contact <a href="mailto:${escapeHtml(supportEmail())}" style="color:#e11d48;">${escapeHtml(supportEmail())}</a>.</p><p style="line-height:1.6;margin:0;">Thank you for choosing ${escapeHtml(storeName())}!</p>
         </td></tr>
-        <tr><td style="background:#f8fafc;padding:18px 28px;text-align:center;color:#94a3b8;font-size:12px;">${escapeHtml(storeName())} &middot; Customer Support: ${escapeHtml(supportEmail())}</td></tr>
+        <tr><td>${emailBrandFooter()}</td></tr>
       </table>
     </td></tr></table>
   </body></html>`;
@@ -320,14 +385,36 @@ export const buildOrderConfirmationEmail = (order: any, options?: { isNewAccount
 export const sendOrderConfirmationEmail = (order: any, options?: { isNewAccount?: boolean; rawPassword?: string }) =>
   sendEmail(String(order.email || ''), buildOrderConfirmationEmail(order, options));
 
-export const sendOrderStatusEmail = async (order: any) => {
-  const content: EmailContent = {
-    subject: `Order Update #${String(order.orderId || 'Order')} - ${String(order.status || 'Updated')}`,
-    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px 24px;border:1px solid #e2e8f0;border-radius:16px;"><h2 style="color:#0f172a;text-align:center;margin:0 0 24px;">Order Update</h2><p>Hi <strong>${escapeHtml(order.customerName || 'Customer')}</strong>,</p><p>Order <strong>#${escapeHtml(order.orderId || 'Order')}</strong> is now <strong>${escapeHtml(order.status || 'Updated')}</strong>.</p>${order.trackingNumber ? `<p>Tracking code: <strong>${escapeHtml(order.trackingNumber)}</strong></p>` : ''}<br/><p>Support: <a href="mailto:${escapeHtml(supportEmail())}" style="color:#e11d48;">${escapeHtml(supportEmail())}</a></p></div>`,
-    text: `${storeName()} order #${String(order.orderId || 'Order')} is now ${String(order.status || 'Updated')}. Support: ${supportEmail()}.`
-  };
-  return sendEmail(String(order.email || ''), content);
+export const buildOrderStatusEmail = (order: any): EmailContent => {
+  const customerName = escapeHtml(order.customerName || 'Customer');
+  const orderId = escapeHtml(order.orderId || 'Order');
+  const status = escapeHtml(order.status || 'Updated');
+  const subject = `Order Update #${String(order.orderId || 'Order')} - ${String(order.status || 'Updated')}`;
+  const html = `<!doctype html>
+  <html lang="en"><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#334155;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden;">
+        <tr><td style="background:#ffffff;padding:0;text-align:center;">
+          ${emailBrandHeader('Order Status Update')}
+        </td></tr>
+        <tr><td style="padding:32px 28px;">
+          <h2 style="color:#0f172a;font-size:24px;margin:0 0 16px;">Order Update</h2>
+          <p style="margin:0 0 12px;line-height:1.6;">Hi <strong>${customerName}</strong>,</p>
+          <p style="margin:0 0 20px;line-height:1.6;">Your ${escapeHtml(storeName())} order <strong>#${orderId}</strong> status has been updated to <strong style="color:#b45309;">${status}</strong>.</p>
+          ${order.trackingNumber ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:16px;margin-bottom:22px;"><strong style="color:#1d4ed8;">Tracking details</strong><div style="color:#1e40af;font-size:14px;margin-top:4px;">Tracking Code: <strong>${escapeHtml(order.trackingNumber)}</strong></div></div>` : ''}
+          <p style="line-height:1.6;margin:0 0 12px;">If you have any questions, reply to this email or reach us at <a href="mailto:${escapeHtml(supportEmail())}" style="color:#e11d48;">${escapeHtml(supportEmail())}</a>.</p>
+          <p style="line-height:1.6;margin:0;">Thank you for choosing ${escapeHtml(storeName())}!</p>
+        </td></tr>
+        <tr><td>${emailBrandFooter()}</td></tr>
+      </table>
+    </td></tr></table>
+  </body></html>`;
+  const text = `${storeName()} order #${String(order.orderId || 'Order')} is now ${String(order.status || 'Updated')}.${order.trackingNumber ? ` Tracking: ${order.trackingNumber}.` : ''} Support: ${supportEmail()}.`;
+  return { subject, html, text };
 };
+
+export const sendOrderStatusEmail = async (order: any) =>
+  sendEmail(String(order.email || ''), buildOrderStatusEmail(order));
 
 export const getAdminNotificationRecipients = (): string[] => {
   const raw = cleanEnv(process.env.NEW_ORDER_NOTIFICATION_EMAILS);
@@ -390,9 +477,8 @@ export const buildAdminNewOrderEmail = (order: any): EmailContent => {
   <html lang="en"><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#334155;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden;">
-        <tr><td style="background:#ffffff;padding:36px 28px 24px;text-align:center;border-bottom:1px solid #f1f5f9;">
-
-          <h1 style="color:#0f172a;font-size:22px;margin:0;">You've received a new order</h1>
+        <tr><td style="background:#ffffff;padding:0;text-align:center;">
+          ${emailBrandHeader("You've received a new order")}
         </td></tr>
         <tr><td style="padding:32px 28px;">
           <h3 style="color:#0f172a;font-size:16px;margin:0 0 8px;">Order summary</h3>
@@ -433,6 +519,7 @@ export const buildAdminNewOrderEmail = (order: any): EmailContent => {
             <a href="${escapeHtml(adminOrderUrl)}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:8px;">View Order in Admin</a>
           </div>
         </td></tr>
+        <tr><td>${emailBrandFooter()}</td></tr>
       </table>
     </td></tr></table>
   </body></html>`;
@@ -467,52 +554,93 @@ export const sendAdminNewOrderEmail = async (order: any, recipients: string[]) =
   return sendEmail(to, buildAdminNewOrderEmail(order));
 };
 
-export const sendPasswordResetEmail = async (user: any, code: string) => {
+export const buildPasswordResetEmail = (user: any, code: string): EmailContent => {
   const subject = `Reset your ${storeName()} password`;
-  const html = `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#333;border:1px solid #e2e8f0;border-radius:16px;padding:32px 24px;">
-
-      <h2 style="color:#0f172a;text-align:center;margin-top:0;">Password Reset</h2>
-      <p>Hello ${escapeHtml(user.name)},</p>
-      <p>You recently requested to reset your password for your ${escapeHtml(storeName())} account. Use the secure token below to reset it.</p>
-      <div style="margin: 30px 0; text-align: center;">
-        <span style="background-color:#f1f5f9;color:#0f172a;padding:16px 32px;border-radius:12px;font-weight:900;font-size:14px;word-break:break-all;">${escapeHtml(code)}</span>
-      </div>
-      <p>This verification code expires in exactly <strong>15 minutes</strong>.</p>
-      <p>If you did not request a password reset, please ignore this email. Your account is safe.</p>
-      <p>Thanks,<br>The ${escapeHtml(storeName())} Team</p>
-    </div>
-  `;
+  const html = `<!doctype html>
+  <html lang="en"><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#334155;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden;">
+        <tr><td style="background:#ffffff;padding:0;text-align:center;">
+          ${emailBrandHeader('Account Security')}
+        </td></tr>
+        <tr><td style="padding:32px 28px;">
+          <h2 style="color:#0f172a;font-size:24px;margin:0 0 16px;">Password Reset Request</h2>
+          <p style="margin:0 0 12px;line-height:1.6;">Hello <strong>${escapeHtml(user.name || 'Customer')}</strong>,</p>
+          <p style="margin:0 0 20px;line-height:1.6;">You recently requested to reset your password for your ${escapeHtml(storeName())} account. Use the secure verification code below to reset it:</p>
+          <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:14px;padding:20px;text-align:center;margin-bottom:22px;">
+            <span style="font-family:monospace,Consolas,Courier;letter-spacing:2px;color:#0f172a;font-size:20px;font-weight:900;">${escapeHtml(code)}</span>
+          </div>
+          <p style="color:#64748b;font-size:13px;line-height:1.5;margin:0 0 16px;">This verification code expires in exactly <strong>15 minutes</strong>.</p>
+          <p style="color:#64748b;font-size:13px;line-height:1.5;margin:0 0 16px;">If you did not request a password reset, please ignore this email. Your account is completely safe.</p>
+          <p style="line-height:1.6;margin:0;">Thanks,<br/>The ${escapeHtml(storeName())} Team</p>
+        </td></tr>
+        <tr><td>${emailBrandFooter()}</td></tr>
+      </table>
+    </td></tr></table>
+  </body></html>`;
   const text = `Hello ${user.name},\n\nYou recently requested to reset your password. Your secure reset token is:\n\n${code}\n\nThis code expires in 15 minutes.\n\nThanks,\nThe ${storeName()} Team`;
 
-  return sendEmail(user.email, { subject, html, text });
+  return { subject, html, text };
 };
 
-export const sendAccountActivationEmail = async (user: any, token: string) => {
-  const resetUrl = `${process.env.FRONTEND_URL || ''}/reset-password?token=${token}&activate=1`;
-  const subject = `Activate Your ${storeName()} Account`;
-  const html = `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#333;border:1px solid #e2e8f0;border-radius:16px;padding:32px 24px;">
+export const sendPasswordResetEmail = async (user: any, code: string) =>
+  sendEmail(user.email, buildPasswordResetEmail(user, code));
 
-      <h2 style="color:#0f172a;text-align:center;margin-top:0;">Welcome!</h2>
-      <p>Hello ${escapeHtml(user.name)},</p>
-      <p>Thank you for your recent order! We've created an account for you to easily track your orders and manage your wishlist.</p>
-      <p>Please click the button below to set your password and activate your account.</p>
-      <div style="margin: 30px 0;">
-        <a href="${resetUrl}" style="background-color:#e11d48;color:#fff;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:bold;">Set Your Password</a>
-      </div>
-      <p>This activation link is only valid for the next 24 hours.</p>
-      <p>Thanks,<br>The ${escapeHtml(storeName())} Team</p>
-    </div>
-  `;
+export const buildAccountActivationEmail = (user: any, token: string): EmailContent => {
+  const resetUrl = `${getStorefrontUrl()}/reset-password?token=${token}&activate=1`;
+  const subject = `Activate Your ${storeName()} Account`;
+  const html = `<!doctype html>
+  <html lang="en"><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#334155;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden;">
+        <tr><td style="background:#ffffff;padding:0;text-align:center;">
+          ${emailBrandHeader('Welcome to ' + storeName())}
+        </td></tr>
+        <tr><td style="padding:32px 28px;">
+          <h2 style="color:#0f172a;font-size:24px;margin:0 0 16px;">Welcome!</h2>
+          <p style="margin:0 0 12px;line-height:1.6;">Hello <strong>${escapeHtml(user.name || 'Customer')}</strong>,</p>
+          <p style="margin:0 0 16px;line-height:1.6;">Thank you for your recent order! We've created an account for you to easily track your orders and manage your skincare routine.</p>
+          <p style="margin:0 0 24px;line-height:1.6;">Please click the button below to set your password and activate your account:</p>
+          <div style="text-align:center;margin-bottom:24px;">
+            <a href="${escapeHtml(resetUrl)}" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px;">Set Your Password</a>
+          </div>
+          <p style="color:#64748b;font-size:13px;line-height:1.5;margin:0 0 16px;">This activation link is only valid for the next 24 hours.</p>
+          <p style="line-height:1.6;margin:0;">Thanks,<br/>The ${escapeHtml(storeName())} Team</p>
+        </td></tr>
+        <tr><td>${emailBrandFooter()}</td></tr>
+      </table>
+    </td></tr></table>
+  </body></html>`;
   const text = `Hello ${user.name},\n\nThank you for your recent order! We've created an account for you to easily track your orders. Please visit the link below to set your password and activate your account:\n${resetUrl}\n\nThanks,\nThe ${storeName()} Team`;
 
-  return sendEmail(user.email, { subject, html, text });
+  return { subject, html, text };
 };
 
-export const sendContactConfirmationEmail = async (email: string, name: string) => {
+export const sendAccountActivationEmail = async (user: any, token: string) =>
+  sendEmail(user.email, buildAccountActivationEmail(user, token));
+
+export const buildContactConfirmationEmail = (email: string, name: string): EmailContent => {
   const subject = `Thank you for contacting ${storeName()}`;
-  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e2e8f0;border-radius:16px;padding:32px 24px;"><h1 style="color:#0f172a;text-align:center;font-size:24px;margin-top:0;">Hello ${name},</h1><p>Thank you for your enquiry. We have received your message and will contact you as soon as possible.</p><br/><p>Best regards,<br/>The ${escapeHtml(storeName())} Team</p></div>`;
+  const html = `<!doctype html>
+  <html lang="en"><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#334155;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden;">
+        <tr><td style="background:#ffffff;padding:0;text-align:center;">
+          ${emailBrandHeader('Customer Support')}
+        </td></tr>
+        <tr><td style="padding:32px 28px;">
+          <h2 style="color:#0f172a;font-size:24px;margin:0 0 16px;">Hello ${escapeHtml(name)},</h2>
+          <p style="margin:0 0 16px;line-height:1.6;">Thank you for your enquiry. We have received your message and our team will get back to you as soon as possible.</p>
+          <p style="line-height:1.6;margin:0 0 12px;">In the meantime, feel free to reply directly to this email if you have any additional details to share.</p>
+          <p style="line-height:1.6;margin:0;">Best regards,<br/>The ${escapeHtml(storeName())} Team</p>
+        </td></tr>
+        <tr><td>${emailBrandFooter()}</td></tr>
+      </table>
+    </td></tr></table>
+  </body></html>`;
   const text = `Hello ${name},\n\nThank you for your enquiry. We have received your message and will contact you as soon as possible.\n\nBest regards,\nThe ${storeName()} Team`;
-  return sendEmail(email, { subject, html, text });
+  return { subject, html, text };
 };
+
+export const sendContactConfirmationEmail = async (email: string, name: string) =>
+  sendEmail(email, buildContactConfirmationEmail(email, name));
