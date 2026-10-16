@@ -18,6 +18,7 @@
     "admin:setup": "tsx src/scripts/setAdmin.ts",
     "test": "node tests/hardening.cjs && node tests/orders.cjs",
     "seed:leva-products": "tsx src/scripts/seedLevaProducts.ts",
+    "seed:bundles": "tsx src/scripts/seedLevaBundles.ts",
     "test:integration": "node tests/admin-integration.cjs"
   },
   "dependencies": {

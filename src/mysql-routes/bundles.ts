@@ -122,10 +122,10 @@ router.get('/',authenticateIfPresent,async (req, res) => {
 });
 
 // Single bundle detail
-router.get('/:slug', async (req, res) => {
+router.get('/:slug', authenticateIfPresent, async (req, res) => {
   try {
     const { slug } = req.params;
-    const [bundles] = await pool.execute('SELECT * FROM bundles WHERE slug = ? AND isActive = 1 LIMIT 1', [slug]);
+    const [bundles] = await pool.execute('SELECT * FROM bundles WHERE (slug = ? OR id = ?) LIMIT 1', [slug, slug]);
     const bundleRows = bundles as any[];
 
     if (bundleRows.length === 0) {
@@ -133,6 +133,10 @@ router.get('/:slug', async (req, res) => {
     }
 
     const bundle = bundleRows[0];
+    const isAdmin = ['admin', 'super_admin'].includes((req as AuthRequest).user?.role || '');
+    if (!bundle.isActive && !isAdmin) {
+      return res.status(404).json({ error: 'Bundle not found' });
+    }
     const galleries = await getBundleGalleries([bundle.id]);
 
     const [linkedRows] = await pool.execute(`
@@ -233,11 +237,13 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     const validProductsToInsert: { product_id: string; quantity: number }[] = [];
     if (Array.isArray(products) && products.length > 0) {
       for (const p of products) {
-        const [prodExists] = await conn.execute('SELECT id FROM products WHERE id = ?', [p.product_id]);
+        const prodId = p?.product_id || p?.productId || p?.id;
+        if (!prodId) continue;
+        const [prodExists] = await conn.execute('SELECT id FROM products WHERE id = ?', [prodId]);
         if ((prodExists as any[]).length > 0) {
           validProductsToInsert.push({
-            product_id: p.product_id,
-            quantity: p.quantity || 1
+            product_id: prodId,
+            quantity: Number(p.quantity) || 1
           });
         }
       }
@@ -322,11 +328,13 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
     const validProductsToInsert: { product_id: string; quantity: number }[] = [];
     if (products !== undefined && Array.isArray(products)) {
       for (const p of products) {
-        const [prodExists] = await conn.execute('SELECT id FROM products WHERE id = ?', [p.product_id]);
+        const prodId = p?.product_id || p?.productId || p?.id;
+        if (!prodId) continue;
+        const [prodExists] = await conn.execute('SELECT id FROM products WHERE id = ?', [prodId]);
         if ((prodExists as any[]).length > 0) {
           validProductsToInsert.push({
-            product_id: p.product_id,
-            quantity: p.quantity || 1
+            product_id: prodId,
+            quantity: Number(p.quantity) || 1
           });
         }
       }
@@ -358,6 +366,8 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
     if (discountType !== undefined) { updates.push('discountType = ?'); values.push(discountType); }
     if (discountValue !== undefined) { updates.push('discountValue = ?'); values.push(discountValue); }
     if (customPrice !== undefined) { updates.push('customPrice = ?'); values.push(customPrice); }
+
+    updates.push('updatedAt = NOW()');
 
     if (updates.length > 0) {
       values.push(id);
