@@ -33,6 +33,13 @@ const finiteNumber = (value: unknown, field: string, maximum: number) => {
   return number;
 };
 
+const jsonValue = (value: unknown, fallback: unknown) => {
+  if (value === null || value === undefined || value === '') return fallback;
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); }
+  catch { return fallback; }
+};
+
 const getSettings = async () => {
   const [rows] = await pool.execute(`SELECT ${SETTINGS_COLS} FROM settings LIMIT 1`);
   let settings = (rows as any[])[0];
@@ -48,7 +55,7 @@ const getSettings = async () => {
         id, process.env.STORE_NAME?.trim() || 'LEVA', process.env.SUPPORT_EMAIL || '', process.env.SUPPORT_PHONE || '', '', 'Rs.', 5000, 250, 0, '', '',
         JSON.stringify(DEFAULT_STOREFRONT_NAVIGATION),
         JSON.stringify(DEFAULT_HOMEPAGE_SECTIONS),
-        JSON.stringify(JSON.parse(process.env.STORE_SOCIAL_LINKS || "{}")),
+        JSON.stringify(jsonValue(process.env.STORE_SOCIAL_LINKS, {})),
         now, now
       ]
     );
@@ -60,9 +67,7 @@ const getSettings = async () => {
 
 const resolvePublicNavigation = async (settings: any) => {
   const navigation = normalizeStoredNavigation(
-    typeof settings.storefrontNavigation === 'string' 
-      ? JSON.parse(settings.storefrontNavigation) 
-      : settings.storefrontNavigation || []
+    jsonValue(settings.storefrontNavigation, [])
   );
   
   // Note: 'status' in MySQL replaces isActive boolean, usually 'Active'/'Inactive'
@@ -92,13 +97,8 @@ const resolvePublicNavigation = async (settings: any) => {
 };
 
 const toPublicSettings = async (settings: any) => {
-  const socialLinks = typeof settings.socialLinks === 'string' 
-    ? JSON.parse(settings.socialLinks) 
-    : settings.socialLinks || {};
-
-  const homepageSections = typeof settings.homepageSections === 'string'
-    ? JSON.parse(settings.homepageSections)
-    : settings.homepageSections;
+  const socialLinks = jsonValue(settings.socialLinks, {});
+  const homepageSections = jsonValue(settings.homepageSections, []);
 
   return {
     storeName: settings.storeName,

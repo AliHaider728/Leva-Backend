@@ -15,8 +15,56 @@ import { resolveCartLine } from '../lib/pricingOffers.js';
 import { resolveRoutineOrder, readRoutineComponents, restoreRoutineStock } from '../mysql-lib/routineOrders.js';
 const router = Router();
 const logEmailFailure = (kind: string, orderId: string, error: unknown) => {
-    console.error(`${kind} email failed for order ${orderId}:`, error);
+    console.error(`${kind} email failed for order ${orderId}: ${getEmailFailureCode(error)}`);
 };
+
+/**
+ * Run email dispatch after the transaction commits but before a serverless
+ * invocation returns. A detached promise can be terminated by the host as
+ * soon as the HTTP response is sent, causing intermittent missing new-order
+ * notifications. Delivery errors intentionally never change the saved order
+ * response.
+ */
+async function notifyCommittedOrder(order: any, orderId: string) {
+    const customerEmail = String(order?.email || order?.guestEmail || '').trim();
+    const recipients = getAdminNotificationRecipients();
+    const tasks: Promise<any>[] = [];
+
+    if (customerEmail) {
+        tasks.push((async () => {
+            try {
+                await sendOrderConfirmationEmail(order, {});
+                await pool.execute('UPDATE orders SET confirmationEmailSentAt = NOW(), confirmationEmailAccepted = 1 WHERE orderId = ?', [orderId]);
+                console.info(`Order confirmation accepted for ${orderId}`);
+            }
+            catch (error) {
+                logEmailFailure('Order confirmation', orderId, error);
+                try {
+                    await pool.execute('UPDATE orders SET confirmationEmailAccepted = 0 WHERE orderId = ?', [orderId]);
+                }
+                catch (updateError) {
+                    console.error(`Could not record confirmation failure for ${orderId}: ${getEmailFailureCode(updateError)}`);
+                }
+            }
+        })());
+    }
+
+    if (recipients.length > 0) {
+        tasks.push((async () => {
+            try {
+                await sendAdminNewOrderEmail(order, recipients);
+                console.info(`Admin new-order notification accepted for ${orderId}`);
+            }
+            catch (error) {
+                logEmailFailure('Admin new order', orderId, error);
+            }
+        })());
+    } else {
+        console.error(`Admin new order email failed for order ${orderId}: NEW_ORDER_RECIPIENT_NOT_CONFIGURED`);
+    }
+
+    await Promise.allSettled(tasks);
+}
 // ─── Explicit column lists (no SELECT *) ────────────────────────────────────
 const ORDER_COLS = 'id, orderId, user_id, guestEmail, guestPhone, total, subtotal, shippingFee, status, paymentMethod, shippingAddress, paymentDetails, createdAt, updatedAt, discountAmount, appliedCoupon, checkoutRequestId, trackingNumber, confirmationEmailSentAt, confirmationEmailAccepted';
 const ORDER_ITEM_COLS = 'id, order_id, productId, productName, quantity, price, image, selectedVariant, variationId, routineComponents';
@@ -216,25 +264,13 @@ router.post('/', authenticateIfPresent, async (req: AuthRequest, res: Response) 
         committed = true;
         const dbOrder = await getFullOrder(pool, orderId);
         const newOrder = dbOrder ? mapOrderForFrontend(dbOrder) : null;
-        // Fire-and-forget CAPI events + emails (same pattern as MongoDB version)
+        // Email dispatch must finish before a serverless invocation returns;
+        // its failures are isolated from the already-committed order.
+        await notifyCommittedOrder(newOrder, orderId);
+
+        // Marketing events remain best-effort and never affect checkout.
         const metaEventId = `purchase_${orderId}`;
         void (async () => {
-            try {
-                await sendOrderConfirmationEmail(newOrder, {});
-                await pool.execute('UPDATE orders SET confirmationEmailSentAt = NOW(), confirmationEmailAccepted = 1 WHERE orderId = ?', [orderId]);
-            }
-            catch (e) {
-                logEmailFailure('Order confirmation', orderId, e);
-                await pool.execute('UPDATE orders SET confirmationEmailAccepted = 0 WHERE orderId = ?', [orderId]);
-            }
-            try {
-                const recipients = getAdminNotificationRecipients();
-                if (recipients.length > 0)
-                    await sendAdminNewOrderEmail(newOrder, recipients);
-            }
-            catch (e) {
-                logEmailFailure('Admin new order', orderId, e);
-            }
             try {
                 const capiOrder = { ...newOrder, email: newOrder.guestEmail, phone: newOrder.guestPhone, customerName: newOrder.shippingAddress?.name };
                 if (totals.features.tracking)

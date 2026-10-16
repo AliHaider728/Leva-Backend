@@ -10,6 +10,11 @@ const REVIEW_COLS_ADMIN = 'id, productId, productName, reviewerName, reviewerEma
 
 const router = Router();
 
+const cleanText = (value: unknown, maximum: number) =>
+  typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, maximum) : '';
+
+const validEmail = (value: string) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
 // Recalculate and update a product's review summary stats (mirrors productReviews.ts logic)
 async function recalculateProductReviewSummary(productId: string) {
   try {
@@ -58,25 +63,41 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const { productId, productName, reviewerName, reviewerEmail, rating, title, content } = req.body;
 
-    if (!productId || !rating || !content || !reviewerName) {
+    const id = cleanText(productId, 255);
+    const name = cleanText(reviewerName, 80);
+    const email = cleanText(reviewerEmail, 254).toLowerCase();
+    const reviewTitle = cleanText(title, 100);
+    const numericRating = Number(rating);
+    const sanitizedContent = sanitizeHtml(cleanText(content, 1000), { allowedTags: [], allowedAttributes: {} }).trim();
+
+    if (!id || name.length < 2 || !sanitizedContent) {
       return res.status(400).json({ error: 'Missing required review fields' });
     }
-    if (rating < 1 || rating > 5) {
+    if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
       return res.status(400).json({ error: 'Rating must be between 1 and 5' });
     }
+    if (!validEmail(email)) return res.status(400).json({ error: 'Enter a valid email address' });
 
-    const sanitizedContent = sanitizeHtml(content, { allowedTags: [], allowedAttributes: {} });
+    // Never accept a client-provided product name as the authoritative product
+    // association. This also prevents pending reviews for deleted products that
+    // cannot be moderated meaningfully in the admin panel.
+    const [products] = await pool.execute(
+      'SELECT id, name FROM products WHERE (id = ? OR slug = ?) AND isVisible = 1 AND status != "draft" LIMIT 1',
+      [id, id]
+    );
+    const product = (products as any[])[0];
+    if (!product) return res.status(404).json({ error: 'This product is no longer available for reviews' });
 
-    const id = crypto.randomBytes(12).toString('hex');
+    const reviewId = crypto.randomBytes(12).toString('hex');
     const now = new Date();
 
     await pool.execute(
       `INSERT INTO reviews (id, productId, productName, reviewerName, reviewerEmail, rating, title, content, status, source, verifiedPurchase, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, productId, productName || '', reviewerName, reviewerEmail || null, Number(rating), title || null, sanitizedContent, 'pending', 'customer', 0, now, now]
+      [reviewId, product.id, cleanText(product.name || productName, 255), name, email || null, numericRating, reviewTitle || null, sanitizedContent, 'pending', 'customer', 0, now, now]
     );
 
-    const [rows] = await pool.execute(`SELECT ${REVIEW_COLS_PUBLIC} FROM reviews WHERE id = ?`, [id]);
+    const [rows] = await pool.execute(`SELECT ${REVIEW_COLS_PUBLIC} FROM reviews WHERE id = ?`, [reviewId]);
     res.status(201).json({
       message: 'Thank you! Your review has been submitted and will appear after approval.',
       review: (rows as any[])[0]

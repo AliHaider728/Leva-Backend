@@ -33,8 +33,20 @@ export class EmailDispatchError extends Error {
   }
 }
 
+const cleanEnv = (val?: string) => (val || '').trim().replace(/^['"]|['"]$/g, '');
+
+const resolveSmtpHost = (rawHost: string) => {
+  const host = cleanEnv(rawHost);
+  // If SMTP host is mail.leva.pk or leva.pk, route directly to the cPanel host IP
+  // because Cloudflare CDN proxy drops port 465/587 connections
+  if (host === 'mail.leva.pk' || host === 'leva.pk') {
+    return '195.201.164.48';
+  }
+  return host;
+};
+
 export const getMissingEmailEnvironmentVariables = () =>
-  REQUIRED_SMTP_ENVIRONMENT_VARIABLES.filter(name => !process.env[name]?.trim());
+  REQUIRED_SMTP_ENVIRONMENT_VARIABLES.filter(name => !cleanEnv(process.env[name]));
 
 export const getEmailFailureCode = (error: unknown) => {
   if (error instanceof EmailDispatchError) return error.code;
@@ -48,17 +60,30 @@ const createTransporter = () => {
   const missing = getMissingEmailEnvironmentVariables();
   if (missing.length > 0) throw new EmailDispatchError('SMTP_NOT_CONFIGURED');
 
-  const port = Number(process.env.SMTP_PORT);
+  const rawPort = cleanEnv(process.env.SMTP_PORT);
+  const port = Number(rawPort);
   if (!Number.isInteger(port) || port <= 0) throw new EmailDispatchError('SMTP_PORT_INVALID');
 
+  const rawHost = cleanEnv(process.env.SMTP_HOST);
+  const host = resolveSmtpHost(rawHost);
+  const user = cleanEnv(process.env.SMTP_USER);
+  const pass = cleanEnv(process.env.SMTP_PASS);
+
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+    host,
     port,
     secure: port === 465,
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
+      user,
+      pass
+    },
+    tls: {
+      servername: (rawHost && rawHost !== '195.201.164.48') ? rawHost : 'mail.leva.pk',
+      rejectUnauthorized: false
+    },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000
   });
 };
 
@@ -87,12 +112,12 @@ const formatDeliveryDate = (value: unknown) => {
 const sendEmail = async (to: string, content: EmailContent): Promise<EmailDispatchResult> => {
   try {
     const info = await createTransporter().sendMail({
-      from: process.env.SMTP_FROM,
+      from: cleanEnv(process.env.SMTP_FROM),
       to,
       subject: content.subject,
       html: content.html,
       text: content.text,
-      replyTo: supportEmail() || undefined
+      replyTo: cleanEnv(supportEmail()) || undefined
     });
     const acceptedCount = Array.isArray(info.accepted) ? info.accepted.length : 0;
     const rejectedCount = Array.isArray(info.rejected) ? info.rejected.length : 0;
@@ -305,15 +330,15 @@ export const sendOrderStatusEmail = async (order: any) => {
 };
 
 export const getAdminNotificationRecipients = (): string[] => {
-  const raw = process.env.NEW_ORDER_NOTIFICATION_EMAILS || '';
-  let emails = raw.split(',').map(e => e.trim()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  const raw = cleanEnv(process.env.NEW_ORDER_NOTIFICATION_EMAILS);
+  let emails = raw.split(',').map(e => cleanEnv(e)).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
 
   if (emails.length === 0) {
-    const fallbackUser = process.env.SMTP_USER || '';
+    const fallbackUser = cleanEnv(process.env.SMTP_USER);
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fallbackUser)) {
       emails.push(fallbackUser);
     } else {
-      const fallbackFromMatch = (process.env.SMTP_FROM || '').match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i);
+      const fallbackFromMatch = cleanEnv(process.env.SMTP_FROM).match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i);
       if (fallbackFromMatch && fallbackFromMatch[0]) {
         emails.push(fallbackFromMatch[0]);
       }

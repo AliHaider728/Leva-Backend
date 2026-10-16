@@ -2,7 +2,7 @@
 import { pool } from '../mysql-lib/db.js';
 async function main() {
     try {
-        for (const [table, column, definition] of [['settings', 'adminFeatures', 'JSON NULL'], ['settings', 'featureFlags', 'JSON NULL'], ['users', 'resetPasswordAttempts', 'INT NOT NULL DEFAULT 0'], ['orders', 'checkoutRequestId', 'VARCHAR(120) NULL'], ['order_items', 'routineComponents', 'JSON NULL']]) {
+        for (const [table, column, definition] of [['settings', 'adminFeatures', 'JSON NULL'], ['settings', 'featureFlags', 'JSON NULL'], ['settings', 'storefrontNavigation', 'JSON NULL'], ['settings', 'homepageSections', 'JSON NULL'], ['settings', 'socialLinks', 'JSON NULL'], ['users', 'resetPasswordAttempts', 'INT NOT NULL DEFAULT 0'], ['orders', 'checkoutRequestId', 'VARCHAR(120) NULL'], ['order_items', 'routineComponents', 'JSON NULL']]) {
             const [rows]: any = await pool.query('SHOW COLUMNS FROM ' + table + ' LIKE ?', [column]);
             if (!rows.length)
                 await pool.execute('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + definition);
@@ -22,7 +22,7 @@ async function main() {
         const unique = [...groups.values()].some(rows => rows.length === 1 && rows[0].Column_name === 'checkoutRequestId' && rows[0].Non_unique === 0);
         if (!unique)
             await pool.execute('ALTER TABLE orders ADD UNIQUE KEY uq_orders_checkout_request (checkoutRequestId)');
-        console.log('Feature flags, reset attempts and unique checkout IDs are ready.');
+        console.log('Settings compatibility, feature flags, reset attempts and unique checkout IDs are ready.');
     }
     finally {
         await pool.end();
