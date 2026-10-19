@@ -32,12 +32,13 @@ async function recalculateProductReviewSummary(productId: string) {
     );
 
     const stats = (rows as any[])[0];
-    const ratingDistribution = JSON.stringify({ 1: stats.r1, 2: stats.r2, 3: stats.r3, 4: stats.r4, 5: stats.r5 });
+    const avgRating = stats.averageRating ? Number(stats.averageRating) : 0;
+    const reviewCount = Number(stats.reviewCount) || 0;
 
-    // Only update the columns that exist in the migrated products table
+    // Synchronize both reviewCount and rating in the products table
     await pool.execute(
-      `UPDATE products SET reviewCount = ?, updatedAt = ? WHERE id = ?`,
-      [stats.reviewCount, new Date(), productId]
+      `UPDATE products SET reviewCount = ?, rating = ?, updatedAt = ? WHERE id = ?`,
+      [reviewCount, avgRating, new Date(), productId]
     );
   } catch (err) {
     console.error('[MySQL] Failed to recalculate review summary:', err);
@@ -164,6 +165,147 @@ router.get('/admin', authenticateToken, requireAdmin, async (req: Request, res: 
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Unable to complete this request.' });
+  }
+});
+
+// POST Admin bulk imports reviews from CSV
+router.post('/admin/import-csv', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId, reviews, status = 'pending' } = req.body;
+
+    if (!productId || typeof productId !== 'string') {
+      return res.status(400).json({ error: 'A valid product selection is required.' });
+    }
+
+    if (!Array.isArray(reviews) || reviews.length === 0) {
+      return res.status(400).json({ error: 'Please provide at least one review record to import.' });
+    }
+
+    if (reviews.length > 500) {
+      return res.status(400).json({ error: 'Import batch exceeds maximum limit of 500 reviews.' });
+    }
+
+    // Verify product exists in database
+    const [products] = await pool.execute(
+      'SELECT id, name FROM products WHERE id = ? OR slug = ? LIMIT 1',
+      [productId, productId]
+    );
+    const product = (products as any[])[0];
+    if (!product) {
+      return res.status(404).json({ error: 'The selected product was not found.' });
+    }
+
+    const targetStatus = status === 'approved' ? 'approved' : 'pending';
+    const now = new Date();
+    const adminUserId = req.user?.userId || null;
+
+    let imported = 0;
+    let skipped = 0;
+    let rejected = 0;
+    const errors: Array<{ row: number; name?: string; reason: string }> = [];
+
+    for (let i = 0; i < reviews.length; i++) {
+      const rowNum = i + 1;
+      const row = reviews[i];
+      if (!row || typeof row !== 'object') {
+        rejected++;
+        errors.push({ row: rowNum, reason: 'Invalid review row format.' });
+        continue;
+      }
+
+      const rawName = row.customer_name ?? row.reviewerName;
+      const rawRating = row.rating;
+      const rawContent = row.review_text ?? row.content;
+      const rawTitle = row.review_title ?? row.title;
+      const rawDate = row.review_date ?? row.date;
+      const rawVerified = row.verified_purchase ?? row.verifiedPurchase;
+
+      const name = cleanText(rawName, 80);
+      const rating = Number(rawRating);
+      const content = sanitizeHtml(cleanText(rawContent, 1000), { allowedTags: [], allowedAttributes: {} }).trim();
+      const title = cleanText(rawTitle, 100);
+
+      if (name.length < 2) {
+        rejected++;
+        errors.push({ row: rowNum, name: name || undefined, reason: 'Customer name must be at least 2 characters.' });
+        continue;
+      }
+
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        rejected++;
+        errors.push({ row: rowNum, name, reason: 'Rating must be an integer between 1 and 5.' });
+        continue;
+      }
+
+      if (content.length < 10) {
+        rejected++;
+        errors.push({ row: rowNum, name, reason: 'Review content must be at least 10 characters.' });
+        continue;
+      }
+
+      // Check duplicate
+      const [existing] = await pool.execute(
+        'SELECT id FROM reviews WHERE productId = ? AND reviewerName = ? AND content = ? LIMIT 1',
+        [product.id, name, content]
+      );
+      if ((existing as any[]).length > 0) {
+        skipped++;
+        errors.push({ row: rowNum, name, reason: 'Duplicate review already exists for this product.' });
+        continue;
+      }
+
+      // Determine date
+      let reviewDate = now;
+      if (rawDate) {
+        const parsed = new Date(rawDate);
+        if (!Number.isNaN(parsed.valueOf()) && parsed <= now) {
+          reviewDate = parsed;
+        }
+      }
+
+      const reviewId = crypto.randomBytes(12).toString('hex');
+      const verifiedPurchase = rawVerified === true || rawVerified === 1 || String(rawVerified).toLowerCase() === 'true';
+
+      await pool.execute(
+        `INSERT INTO reviews (
+          id, productId, productName, reviewerName, rating, title, content,
+          status, source, verifiedPurchase, approvedAt, approvedBy, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'csv_import', ?, ?, ?, ?, ?)`,
+        [
+          reviewId,
+          product.id,
+          product.name,
+          name,
+          rating,
+          title || null,
+          content,
+          targetStatus,
+          verifiedPurchase ? 1 : 0,
+          targetStatus === 'approved' ? reviewDate : null,
+          targetStatus === 'approved' ? adminUserId : null,
+          reviewDate,
+          now
+        ]
+      );
+      imported++;
+    }
+
+    if (imported > 0 && targetStatus === 'approved') {
+      await recalculateProductReviewSummary(product.id);
+    }
+
+    res.json({
+      success: true,
+      product: { id: product.id, name: product.name },
+      total: reviews.length,
+      imported,
+      skipped,
+      rejected,
+      errors
+    });
+  } catch (err: any) {
+    console.error('[MySQL] CSV review import failed:', err);
+    res.status(500).json({ error: 'Unable to import reviews. Please check the data format.' });
   }
 });
 
