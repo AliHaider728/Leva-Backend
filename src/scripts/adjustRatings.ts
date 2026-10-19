@@ -22,15 +22,15 @@ async function main() {
       "UPDATE products SET rating = 4.90, updatedAt = NOW() WHERE id = 'e58decf4-e585-4c81-a9ee-a61149350574'"
     );
 
-    // 3. LEVA Face Wash -> 24 reviews with 5, 6 reviews with 4 so average is 4.80 -> 4.8
+    // 3. LEVA Face Wash -> 28 reviews with 5, 2 reviews with 4 so average is 4.93 -> 4.90
     await conn.execute(
       "UPDATE reviews SET rating = 5 WHERE productId = '5ee90b2d-26a8-4891-99ad-476f475a7f0e'"
     );
     await conn.execute(
-      "UPDATE reviews SET rating = 4 WHERE productId = '5ee90b2d-26a8-4891-99ad-476f475a7f0e' AND reviewerName IN ('Aiman Raza', 'Fiza Rehman', 'Ahsan Butt', 'Waleed Khan', 'Zubair Hassan', 'Sameer Abbas')"
+      "UPDATE reviews SET rating = 4 WHERE productId = '5ee90b2d-26a8-4891-99ad-476f475a7f0e' AND reviewerName IN ('Aiman Raza', 'Fiza Rehman')"
     );
     await conn.execute(
-      "UPDATE products SET rating = 4.80, updatedAt = NOW() WHERE id = '5ee90b2d-26a8-4891-99ad-476f475a7f0e'"
+      "UPDATE products SET rating = 4.90, updatedAt = NOW() WHERE id = '5ee90b2d-26a8-4891-99ad-476f475a7f0e'"
     );
 
     // Check results
