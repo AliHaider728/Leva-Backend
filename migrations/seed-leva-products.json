@@ -1,15 +1,15 @@
 [
   {
     "slug": "product-01",
-    "name": "Brightening Cream",
-    "price": 6800,
-    "originalPrice": 8500,
-    "description": "A luminous daily veil created as a clean placeholder for LEVA's first formula.",
+    "name": "LEVA Cream",
+    "price": 1650,
+    "originalPrice": 2100,
+    "description": "LEVA Cream for a soft, radiant-looking finish.",
     "shortDescription": "Softens the look of tired, dry skin.",
     "stockQuantity": 18,
     "brand": "LEVA",
     "images": [
-      "/images/leva-cleansing-balm.png"
+      "/images/brightening-cream-main.webp"
     ],
     "isBestseller": true,
     "isNewArrival": false,
@@ -23,9 +23,9 @@
       "Combination"
     ],
     "specifications": {
-      "Size": "50 ML",
+      "Size": "30 G",
       "Type": "Cream",
-      "Ingredients": "Formula details ready to be replaced with your final ingredient list.",
+      "Ingredients": "See the product packaging for the complete ingredient list.",
       "Usage": "Massage onto clean skin in slow upward movements each morning.",
       "FAQ": "Designed as an everyday step for all skin types. Patch test before first use.",
       "Ritual": "The first veil"
@@ -34,20 +34,20 @@
   },
   {
     "slug": "product-02",
-    "name": "Radiance Serum",
-    "price": 7900,
-    "originalPrice": 9900,
-    "description": "A concentrated night ritual created as a clean placeholder for LEVA's second formula.",
-    "shortDescription": "Replenishes skin through the quiet hours.",
+    "name": "LEVA Tinted Sunblock",
+    "price": 1500,
+    "originalPrice": 1900,
+    "description": "LEVA Tinted Sunblock with SPF 50 PA+++ and a lightweight, natural tint.",
+    "shortDescription": "Broad-spectrum UVA/UVB protection with a natural tint.",
     "stockQuantity": 12,
     "brand": "LEVA",
     "images": [
-      "/images/leva-radiance-serum.png"
+      "/images/tinted-sunscreen-main.webp"
     ],
     "isBestseller": false,
     "isNewArrival": true,
     "tags": [
-      "Serum",
+      "Sunscreen",
       "Dullness",
       "Dryness",
       "Dry",
@@ -56,26 +56,26 @@
       "Oily"
     ],
     "specifications": {
-      "Size": "30 ML",
-      "Type": "Serum",
-      "Ingredients": "Formula details ready to be replaced with your final ingredient list.",
-      "Usage": "Press a few drops into skin after cleansing, then pause and breathe.",
-      "FAQ": "Use alone or follow with PRODUCT 01. Patch test before first use.",
-      "Ritual": "The quiet reset"
+      "Size": "SPF 50 · PA+++",
+      "Type": "Sunscreen",
+      "Ingredients": "See the product packaging for the complete ingredient list.",
+      "Usage": "Apply before sun exposure and reapply as directed on the product label.",
+      "FAQ": "Broad-spectrum UVA/UVB protection with a natural tint.",
+      "Ritual": "The daily shield"
     },
     "createdAt": "2026-09-15"
   },
   {
     "slug": "product-03",
-    "name": "Gentle Face Wash",
-    "price": 5400,
-    "originalPrice": 6750,
-    "description": "A precise finishing treatment created as a clean placeholder for LEVA's third formula.",
-    "shortDescription": "Targets the places that need extra care.",
+    "name": "LEVA Face Wash",
+    "price": 1450,
+    "originalPrice": 1800,
+    "description": "LEVA Face Wash for a refreshing cleansing ritual.",
+    "shortDescription": "Cleanses and refreshes skin without stripping moisture.",
     "stockQuantity": 7,
     "brand": "LEVA",
     "images": [
-      "/images/leva-ritual-hero.png"
+      "/images/face-wash-main.webp"
     ],
     "isBestseller": false,
     "isNewArrival": false,
@@ -88,11 +88,11 @@
       "Sensitive"
     ],
     "specifications": {
-      "Size": "15 ML",
+      "Size": "145 ML",
       "Type": "Cleanser",
-      "Ingredients": "Formula details ready to be replaced with your final ingredient list.",
-      "Usage": "Tap gently where the skin asks for extra care, morning or evening.",
-      "FAQ": "Created for precise application morning or evening. Patch test before first use.",
+      "Ingredients": "See the product packaging for the complete ingredient list.",
+      "Usage": "Apply to a damp face, massage gently, then rinse thoroughly.",
+      "FAQ": "See the product packaging for usage and safety information.",
       "Ritual": "The final touch"
     },
     "createdAt": "2026-07-20"
