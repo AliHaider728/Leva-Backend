@@ -8,9 +8,9 @@ export interface RoutineDiscountSettings {
 
 export const DEFAULT_ROUTINE_DISCOUNT: RoutineDiscountSettings = {
   minimumDistinctProducts: 2,
-  tiers: [{ minProducts: 2, discountPercent: 10 }, { minProducts: 3, discountPercent: 15 }],
-  quantityBonusEnabled: true,
-  quantityBonusPercent: 5,
+  tiers: [{ minProducts: 2, discountPercent: 10 }, { minProducts: 3, discountPercent: 20 }],
+  quantityBonusEnabled: false,
+  quantityBonusPercent: 0,
 };
 
 export function validateRoutineSettings(input: unknown): RoutineDiscountSettings {
