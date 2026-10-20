@@ -101,13 +101,20 @@ export async function calculateCheckout(conn: any, items: any[], couponCode: str
     if (!settings)
         throw new ClientError('Shipping settings are not configured.', 503);
     const routine = features.routineBuilder ? calculateRoutineDiscount(canonicalItems.filter(line => line.isRoutine && !String(line.productId).startsWith('routine-')).map(line => ({ productId: line.productId, quantity: line.quantity, unitPrice: line.price })), await getRoutineSettings(conn)).savings : 0;
+    const eligibleForCoupon = canonicalItems
+        .filter(line => !line.isRoutine && line.productType !== 'bundle')
+        .reduce((sum, line) => sum + line.price * line.quantity, 0);
     let couponDiscount = 0;
     if (couponCode) {
         if (!features.coupons)
             throw new ClientError('Coupons are not available.', 404);
         const [rows] = await conn.execute('SELECT id,code,isActive,discountType,discountValue,minPurchase,expiryDate,usageLimit,usageCount FROM coupons WHERE code=? AND isActive=1 AND (expiryDate IS NULL OR expiryDate>=CURRENT_DATE()) FOR UPDATE', [couponCode]);
         const coupon = rows[0];
-        couponDiscount = couponSavings(coupon, Math.max(0, subtotal - routine));
+        if (!coupon)
+            throw new ClientError('Your coupon is no longer valid.');
+        if (eligibleForCoupon <= 0)
+            throw new ClientError('Coupon discounts cannot be stacked with bundle or routine savings.');
+        couponDiscount = couponSavings(coupon, eligibleForCoupon);
         const [used] = await conn.execute('UPDATE coupons SET usageCount=usageCount+1 WHERE id=? AND isActive=1 AND (expiryDate IS NULL OR expiryDate>=CURRENT_DATE()) AND (usageLimit IS NULL OR usageCount<usageLimit)', [coupon.id]);
         if (!used.affectedRows)
             throw new ClientError('Coupon usage limit reached.');

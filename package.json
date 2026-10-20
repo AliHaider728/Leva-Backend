@@ -8,6 +8,7 @@
   },
   "scripts": {
     "migrate:routine-orders": "tsx src/scripts/migrateRoutineOrders.ts",
+    "migrate:routine-builder": "tsx src/scripts/enableRoutineBuilder.ts",
     "migrate:bundle-gallery": "tsx src/scripts/migrateBundleGallery.ts",
     "dev": "tsx src/server.ts",
     "build": "node scripts/clean-dist.mjs && tsc",
