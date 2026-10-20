@@ -35,24 +35,66 @@ const proxyHops=Number(process.env.TRUST_PROXY_HOPS||0);if(Number.isInteger(prox
 app.use(helmet());
 
 
-const configuredFrontendUrl = process.env.FRONTEND_URL?.trim();
-const allowedOrigins = [...new Set([
-  ...(process.env.CORS_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean),
-  ...(configuredFrontendUrl ? [configuredFrontendUrl] : []),
-  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3000','http://127.0.0.1:3000'])
-])];
+const defaultAllowedOrigins = [
+  'https://leva.pk',
+  'https://www.leva.pk',
+  'https://admin.leva.pk',
+  'http://leva.pk',
+  'http://www.leva.pk',
+  'http://admin.leva.pk',
+  'https://leve-frontend-virid.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+
+const envFrontendOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map(o => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+const envCorsOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+const allConfiguredOrigins = new Set([
+  ...defaultAllowedOrigins,
+  ...envFrontendOrigins,
+  ...envCorsOrigins,
+]);
+
+const isAllowedOrigin = (origin?: string): boolean => {
+  if (!origin) return true;
+  const cleanOrigin = origin.trim().replace(/\/+$/, '');
+  if (allConfiguredOrigins.has(cleanOrigin)) return true;
+  if (/^https?:\/\/([a-z0-9-]+\.)*leva\.pk$/i.test(cleanOrigin)) return true;
+  if (/^https:\/\/([a-z0-9-]+\.)*vercel\.app$/i.test(cleanOrigin)) return true;
+  return false;
+};
 
 const corsOptions: CorsOptions = {
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('This origin is not permitted.'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Leva-Storefront'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Leva-Storefront', 'X-Leva-Admin-Request'],
   optionsSuccessStatus: 204
 };
 
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
-app.use((req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)&&req.headers.origin&&!allowedOrigins.includes(req.headers.origin))return res.status(403).json({error:'This origin is not permitted.'});next();});
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  if (req.headers.origin && !isAllowedOrigin(req.headers.origin)) {
+    return res.status(403).json({ error: 'This origin is not permitted.' });
+  }
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
