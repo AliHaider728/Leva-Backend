@@ -1,6 +1,6 @@
 [
   {
-    "slug": "product-01",
+    "slug": "leva-cream",
     "name": "LEVA Cream",
     "sku": "LEV-CRM30",
     "price": 1650,
@@ -35,7 +35,7 @@
     "createdAt": "2026-06-01"
   },
   {
-    "slug": "product-02",
+    "slug": "leva-tinted-sunblock",
     "name": "LEVA Tinted Sunblock",
     "sku": "LEV-TSPF50",
     "price": 1500,
@@ -70,7 +70,7 @@
     "createdAt": "2026-09-15"
   },
   {
-    "slug": "product-03",
+    "slug": "leva-face-wash",
     "name": "LEVA Face Wash",
     "sku": "LEV-FW145",
     "price": 1450,

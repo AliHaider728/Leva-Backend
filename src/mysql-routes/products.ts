@@ -243,13 +243,25 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res: 
       return res.status(400).json({ error: 'Product name and price are required' });
     }
 
-    const slug = createSlug(body.slug || body.name);
+    let baseSlug = createSlug(body.slug || body.name);
+    if (!baseSlug) baseSlug = `product-${Date.now().toString(36)}`;
+    let slug = baseSlug;
 
     // Slug uniqueness check
-    const [existing] = await conn.execute('SELECT id FROM products WHERE slug = ?', [slug]);
-    if ((existing as any[]).length > 0) {
-      await conn.rollback();
-      return res.status(409).json({ error: 'URL slug is already used by another product' });
+    if (!body.slug) {
+      let counter = 1;
+      while (true) {
+        const [existing] = await conn.execute('SELECT id FROM products WHERE slug = ?', [slug]);
+        if ((existing as any[]).length === 0) break;
+        counter++;
+        slug = `${baseSlug}-${counter}`;
+      }
+    } else {
+      const [existing] = await conn.execute('SELECT id FROM products WHERE slug = ?', [slug]);
+      if ((existing as any[]).length > 0) {
+        await conn.rollback();
+        return res.status(409).json({ error: 'URL slug is already used by another product' });
+      }
     }
 
     // Inventory normalization
@@ -387,7 +399,9 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
     if((req.body.productType==='variable'||req.body.variations?.length)&&!(await getFeatures(conn)).variants){await conn.rollback();return res.status(404).json({error:'Variants are not available.'});}
     const current = (existingRows as any[])[0];
     const body = { ...parseJson(JSON.stringify(current), {}), ...req.body };
-    const slug = createSlug(body.slug || body.name);
+    let baseSlug = createSlug(body.slug || body.name);
+    if (!baseSlug) baseSlug = `product-${Date.now().toString(36)}`;
+    let slug = baseSlug;
     const now = new Date();
 
     // Slug uniqueness check (excluding self)

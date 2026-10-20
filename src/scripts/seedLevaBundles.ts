@@ -30,7 +30,7 @@ const seedBundles: SeedBundle[] = [
     isBestseller: true,
     status: 'published',
     displayOrder: 0,
-    productSlugs: ['product-03', 'product-01', 'product-02']
+    productSlugs: ['leva-face-wash', 'leva-cream', 'leva-tinted-sunblock']
   },
   {
     name: 'The Duo',
@@ -43,7 +43,7 @@ const seedBundles: SeedBundle[] = [
     isBestseller: false,
     status: 'published',
     displayOrder: 1,
-    productSlugs: ['product-01', 'product-02']
+    productSlugs: ['leva-cream', 'leva-tinted-sunblock']
   }
 ];
 
