@@ -2,10 +2,11 @@
   {
     "slug": "product-01",
     "name": "LEVA Cream",
+    "sku": "LEV-CRM30",
     "price": 1650,
     "originalPrice": 2100,
-    "description": "LEVA Cream for a soft, radiant-looking finish.",
-    "shortDescription": "Softens the look of tired, dry skin.",
+    "description": "LEVA Cream is an indulgent yet fast-absorbing daily moisturizing and brightening cream. Enriched with ceramides, hyaluronic acid, and nourishing botanical extracts, it works deeply to replenish lost moisture, soothe environmental stress, and brighten dull skin. It locks in long-lasting hydration, leaving your complexion soft, plump, and luminous throughout the day.",
+    "shortDescription": "Deeply hydrates, repairs the moisture barrier, and enhances luminous radiance for soft, glowing skin.",
     "stockQuantity": 18,
     "brand": "LEVA",
     "images": [
@@ -25,20 +26,22 @@
     "specifications": {
       "Size": "30 G",
       "Type": "Cream",
-      "Ingredients": "See the product packaging for the complete ingredient list.",
-      "Usage": "Massage onto clean skin in slow upward movements each morning.",
-      "FAQ": "Designed as an everyday step for all skin types. Patch test before first use.",
-      "Ritual": "The first veil"
+      "Ingredients": "Aqua, Caprylic/Capric Triglyceride, Cetearyl Alcohol, Niacinamide, Ceramide NP, Sodium Hyaluronate, Alpha Arbutin, Licorice Root Extract, Shea Butter, Vitamin E (Tocopherol), Dimethicone, Glycerin, Phenoxyethanol, Ethylhexylglycerin.",
+      "Usage": "Take a dime-sized amount and warm between fingertips. Smooth evenly over cleansed face and neck in gentle upward circular motions until fully absorbed. Use morning and evening as Step 02 of your ritual.",
+      "FAQ": "Is LEVA Cream suitable for oily or sensitive skin? Yes, the formula is lightweight and non-comedogenic, absorbing quickly without clogging pores or feeling greasy. Suitable for dry, normal, combination, and sensitive skin.",
+      "Ritual": "Step 02 · The Nourishing Veil",
+      "Benefit": "Deep 24-hour hydration, repairs moisture barrier, targets dullness & uneven tone, imparts a healthy lit-from-within glow."
     },
     "createdAt": "2026-06-01"
   },
   {
     "slug": "product-02",
     "name": "LEVA Tinted Sunblock",
+    "sku": "LEV-TSPF50",
     "price": 1500,
     "originalPrice": 1900,
-    "description": "LEVA Tinted Sunblock with SPF 50 PA+++ and a lightweight, natural tint.",
-    "shortDescription": "Broad-spectrum UVA/UVB protection with a natural tint.",
+    "description": "LEVA Tinted Sunblock delivers broad-spectrum SPF 50 PA+++ protection against harmful UVA and UVB rays while infusing the skin with a lightweight, universal tint. It seamlessly blurs minor imperfections, redness, and uneven skin tone, leaving a natural dewy finish without any sticky residue or white cast. Designed for everyday wear in Pakistan's climate, it serves as your daily sun defense and effortless no-makeup skin tint in one.",
+    "shortDescription": "Broad-spectrum SPF 50 PA+++ protection with a sheer universal tint for a radiant, non-greasy finish without white cast.",
     "stockQuantity": 12,
     "brand": "LEVA",
     "images": [
@@ -56,22 +59,24 @@
       "Oily"
     ],
     "specifications": {
-      "Size": "SPF 50 · PA+++",
+      "Size": "SPF 50 · PA+++ (50 ML)",
       "Type": "Sunscreen",
-      "Ingredients": "See the product packaging for the complete ingredient list.",
-      "Usage": "Apply before sun exposure and reapply as directed on the product label.",
-      "FAQ": "Broad-spectrum UVA/UVB protection with a natural tint.",
-      "Ritual": "The daily shield"
+      "Ingredients": "Aqua, Zinc Oxide, Titanium Dioxide, Ethylhexyl Methoxycinnamate, Niacinamide, Sodium Hyaluronate, Vitamin E (Tocopherol), Cyclopentasiloxane, Iron Oxides (Natural Mineral Tint), Silica, Glycerin, Phenoxyethanol, Ethylhexylglycerin.",
+      "Usage": "Apply generously and evenly to face, neck, and exposed skin 15 minutes before sun exposure. Gently blend with fingertips or a beauty sponge. Reapply every 2 hours, or after sweating or towel drying. Can be worn alone or as a primer under makeup.",
+      "FAQ": "Will it leave a white cast or feel heavy? No, LEVA Tinted Sunblock uses micronized mineral filters with a sheer universal tint that blends naturally across Pakistani skin tones with an oil-free, weightless feel.",
+      "Ritual": "Step 03 · The Daily Shield",
+      "Benefit": "High broad-spectrum UVA/UVB defense, natural skin-evening tint, prevents dark spots and premature aging, zero white cast, lightweight non-greasy formula."
     },
     "createdAt": "2026-09-15"
   },
   {
     "slug": "product-03",
     "name": "LEVA Face Wash",
+    "sku": "LEV-FW145",
     "price": 1450,
     "originalPrice": 1800,
-    "description": "LEVA Face Wash for a refreshing cleansing ritual.",
-    "shortDescription": "Cleanses and refreshes skin without stripping moisture.",
+    "description": "LEVA Face Wash is a gentle, refreshing daily facial cleanser formulated to purify and revitalize the skin. It effectively removes dirt, excess oil, pollution, and impurities while respecting the skin's natural moisture barrier. Enriched with soothing botanicals, niacinamide, and pro-vitamin B5, it leaves your skin soft, thoroughly clean, and balanced without any tightness or dryness.",
+    "shortDescription": "A gentle, purifying daily face wash that cleanses pores deeply without stripping moisture, leaving skin fresh and revitalized.",
     "stockQuantity": 7,
     "brand": "LEVA",
     "images": [
@@ -90,10 +95,11 @@
     "specifications": {
       "Size": "145 ML",
       "Type": "Cleanser",
-      "Ingredients": "See the product packaging for the complete ingredient list.",
-      "Usage": "Apply to a damp face, massage gently, then rinse thoroughly.",
-      "FAQ": "See the product packaging for usage and safety information.",
-      "Ritual": "The final touch"
+      "Ingredients": "Aqua, Glycerin, Sodium Cocoyl Isethionate, Cocamidopropyl Betaine, Niacinamide, Panthenol (Pro-Vitamin B5), Aloe Barbadensis Leaf Juice, Allantoin, Chamomile Extract, Citric Acid, Phenoxyethanol, Ethylhexylglycerin.",
+      "Usage": "Dispense 1-2 pumps onto damp hands and work into a gentle lather. Massage gently over face and neck in circular motions for 30–60 seconds, avoiding the eye area. Rinse thoroughly with lukewarm water and pat dry. Use morning and night as Step 01 of your ritual.",
+      "FAQ": "Is LEVA Face Wash suitable for daily use on acne-prone or sensitive skin? Yes, it is soap-free, sulfate-free, and formulated at skin-friendly pH. It cleanses deeply while keeping the skin barrier calm and hydrated.",
+      "Ritual": "Step 01 · The Cleanse",
+      "Benefit": "Purifies pores, removes daily impurities & excess sebum, hydrates without stripping, prepares skin for subsequent ritual steps."
     },
     "createdAt": "2026-07-20"
   }
