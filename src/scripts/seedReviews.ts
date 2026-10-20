@@ -100,7 +100,7 @@ async function seedReviews() {
     await conn.execute("DELETE FROM reviews WHERE reviewerName = 'test' AND content LIKE 'test%'");
 
     const productMap: Record<string, { id: string; name: string; reviews: SeedReview[] }> = {
-      'leva-cream': { id: '7f43d8ce-d716-481f-8a51-fcc7170d0e55', name: 'LEVA Cream', reviews: CREAM_REVIEWS },
+      'leva-brightening-cream': { id: '7f43d8ce-d716-481f-8a51-fcc7170d0e55', name: 'LEVA Brightening Cream', reviews: CREAM_REVIEWS },
       'leva-tinted-sunblock': { id: 'e58decf4-e585-4c81-a9ee-a61149350574', name: 'LEVA Tinted Sunblock', reviews: SUNBLOCK_REVIEWS },
       'leva-face-wash': { id: '5ee90b2d-26a8-4891-99ad-476f475a7f0e', name: 'LEVA Face Wash', reviews: FACEWASH_REVIEWS },
     };

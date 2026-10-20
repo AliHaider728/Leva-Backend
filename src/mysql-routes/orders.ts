@@ -9,6 +9,7 @@ import { sendMetaPurchase } from '../lib/metaConversionsApi.js';
 import { sendTikTokPurchase } from '../lib/tiktokEventsApi.js';
 import { getEmailFailureCode, sendOrderConfirmationEmail, sendOrderDeliveredEmail, sendOrderStatusEmail, sendAdminNewOrderEmail, getAdminNotificationRecipients } from '../utils/mailer.js';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { calculateRoutineDiscount, roundMoney } from '../lib/routineDiscount.js';
 import { getRoutineSettings } from '../mysql-lib/routineSettings.js';
 import { resolveCartLine } from '../lib/pricingOffers.js';
@@ -256,7 +257,31 @@ router.post('/', authenticateIfPresent, async (req: AuthRequest, res: Response) 
         const coupon = rawCoupon.trim().toUpperCase();
         const totals = await calculateCheckout(conn, items, coupon);
         const orderId = generateOrderId(), internalId = crypto.randomBytes(12).toString('hex'), now = new Date();
-        await conn.execute('INSERT INTO orders (id,orderId,user_id,guestEmail,guestPhone,total,subtotal,shippingFee,discountAmount,status,paymentMethod,shippingAddress,appliedCoupon,checkoutRequestId,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [internalId, orderId, req.user?.userId || null, email ? String(email).trim().toLowerCase() : null, phone, totals.total, totals.subtotal, totals.shippingFee, totals.discount, 'Pending', 'COD', JSON.stringify({ ...shippingAddress, fullName: customerName, phone }), coupon ? JSON.stringify({ code: coupon }) : null, requestId, now, now]);
+        const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
+        let customerUserId = req.user?.userId || null;
+        if (!customerUserId && normalizedEmail) {
+            try {
+                const [userRows]: any = await conn.execute('SELECT id, phone FROM users WHERE email = ?', [normalizedEmail]);
+                if (userRows && userRows.length > 0) {
+                    customerUserId = userRows[0].id;
+                    if (!userRows[0].phone && phone) {
+                        await conn.execute('UPDATE users SET phone = ?, updatedAt = ? WHERE id = ?', [phone, now, customerUserId]);
+                    }
+                } else {
+                    customerUserId = crypto.randomBytes(12).toString('hex');
+                    const randomPassword = crypto.randomBytes(16).toString('hex');
+                    const passwordHash = await bcrypt.hash(randomPassword, 10);
+                    const userName = customerName && String(customerName).trim() ? String(customerName).trim() : normalizedEmail.split('@')[0];
+                    await conn.execute(
+                        'INSERT INTO users (id, name, email, phone, passwordHash, role, wishlist, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [customerUserId, userName, normalizedEmail, phone || null, passwordHash, 'customer', '[]', now, now]
+                    );
+                }
+            } catch (userErr) {
+                console.warn('Auto customer account creation warning:', userErr);
+            }
+        }
+        await conn.execute('INSERT INTO orders (id,orderId,user_id,guestEmail,guestPhone,total,subtotal,shippingFee,discountAmount,status,paymentMethod,shippingAddress,appliedCoupon,checkoutRequestId,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [internalId, orderId, customerUserId, normalizedEmail, phone, totals.total, totals.subtotal, totals.shippingFee, totals.discount, 'Pending', 'COD', JSON.stringify({ ...shippingAddress, fullName: customerName, phone }), coupon ? JSON.stringify({ code: coupon }) : null, requestId, now, now]);
         for (const item of totals.items)
             await conn.execute('INSERT INTO order_items (id,order_id,productId,productName,quantity,price,image,selectedVariant,variationId,routineComponents) VALUES (?,?,?,?,?,?,?,?,?,?)', [crypto.randomBytes(12).toString('hex'), internalId, item.productId, item.productName, item.quantity, item.price, item.image, item.selectedVariant, item.variationId, item.routineComponents ? JSON.stringify(item.routineComponents) : null]);
         await conn.execute('INSERT INTO order_status_history (id,order_id,status,note,timestamp) VALUES (?,?,?,?,?)', [crypto.randomBytes(12).toString('hex'), internalId, 'Pending', 'Order placed', now]);

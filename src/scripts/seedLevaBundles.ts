@@ -21,7 +21,7 @@ const seedBundles: SeedBundle[] = [
   {
     name: 'The Complete Ritual',
     slug: 'complete-ritual',
-    description: 'A complete three-step LEVA ritual: cleanse with LEVA Face Wash, care with LEVA Cream, then finish with LEVA Tinted Sunblock SPF 50 PA+++.',
+    description: 'A complete three-step LEVA ritual: cleanse with LEVA Face Wash, care with LEVA Brightening Cream, then finish with LEVA Tinted Sunblock SPF 50 PA+++.',
     image: 'https://pub-a072adc556d047e0bacc05300ca63f83.r2.dev/images/leva-complete-ritual-bundle.webp',
     discountType: 'percentage',
     discountValue: 15,
@@ -30,12 +30,12 @@ const seedBundles: SeedBundle[] = [
     isBestseller: true,
     status: 'published',
     displayOrder: 0,
-    productSlugs: ['leva-face-wash', 'leva-cream', 'leva-tinted-sunblock']
+    productSlugs: ['leva-face-wash', 'leva-brightening-cream', 'leva-tinted-sunblock']
   },
   {
     name: 'The Duo',
     slug: 'the-essentials',
-    description: 'The LEVA Cream and LEVA Tinted Sunblock, paired for a daytime ritual.',
+    description: 'The LEVA Brightening Cream and LEVA Tinted Sunblock, paired for a daytime ritual.',
     discountType: 'percentage',
     discountValue: 10,
     discountPercent: 10,
@@ -43,7 +43,7 @@ const seedBundles: SeedBundle[] = [
     isBestseller: false,
     status: 'published',
     displayOrder: 1,
-    productSlugs: ['leva-cream', 'leva-tinted-sunblock']
+    productSlugs: ['leva-brightening-cream', 'leva-tinted-sunblock']
   }
 ];
 

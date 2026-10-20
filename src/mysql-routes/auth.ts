@@ -11,14 +11,15 @@ import crypto from 'crypto';
 import { sendPasswordResetEmail } from '../utils/mailer.js';
 const router = Router();
 // ─── Explicit column lists (no SELECT *) ────────────────────────────────────
-const USER_COLS_AUTH = 'id, name, email, passwordHash, role, wishlist, resetPasswordToken, resetPasswordExpires, createdAt, updatedAt';
-const USER_COLS_SAFE = 'id, name, email, role, wishlist, createdAt, updatedAt';
+const USER_COLS_AUTH = 'id, name, email, phone, passwordHash, role, wishlist, resetPasswordToken, resetPasswordExpires, createdAt, updatedAt';
+const USER_COLS_SAFE = 'id, name, email, phone, role, wishlist, createdAt, updatedAt';
 // Helper to convert DB rows to public User objects
 const toPublicUser = (row: any) => {
     return {
         id: row.id,
         name: row.name,
         email: row.email,
+        phone: row.phone || '',
         role: row.role,
         wishlist: typeof row.wishlist === 'string' ? JSON.parse(row.wishlist) : (row.wishlist || []),
         createdAt: row.createdAt,
@@ -28,7 +29,7 @@ const toPublicUser = (row: any) => {
 // POST /register
 router.post('/register', limiter(10), accountLimiter(3), async (req: Request, res: Response) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, password, phone } = req.body;
         if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
             return res.status(400).json({ error: 'Email and password are required' });
         }
@@ -42,11 +43,31 @@ router.post('/register', limiter(10), accountLimiter(3), async (req: Request, re
         }
         const passwordHash = await bcrypt.hash(password, 10);
         const finalName = name ? name.trim() : normalizedEmail.split('@')[0];
+        const finalPhone = phone ? String(phone).trim() : null;
         const id = crypto.randomBytes(12).toString('hex');
         const now = new Date();
-        await pool.execute(`INSERT INTO users (id, name, email, passwordHash, role, wishlist, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [id, finalName, normalizedEmail, passwordHash, 'customer', '[]', now, now]);
-        res.status(201).json({ message: 'Account created successfully. Please sign in to continue.' });
+        await pool.execute(`INSERT INTO users (id, name, email, phone, passwordHash, role, wishlist, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, finalName, normalizedEmail, finalPhone, passwordHash, 'customer', '[]', now, now]);
+        const jwtSecret = process.env.JWT_SECRET;
+        let token = '';
+        if (jwtSecret) {
+            token = jwt.sign({ userId: id, email: normalizedEmail, role: 'customer' }, jwtSecret, { expiresIn: '7d' });
+            res.cookie(sessionCookieName(), token, {
+                ...sessionCookieOptions(),
+                maxAge: 7 * 24 * 60 * 60 * 1000
+            });
+        }
+        const userObj = {
+            id,
+            name: finalName,
+            email: normalizedEmail,
+            phone: finalPhone || '',
+            role: 'customer',
+            wishlist: [],
+            createdAt: now,
+            updatedAt: now
+        };
+        res.status(201).json({ message: 'Account created successfully.', token, user: userObj });
     }
     catch (err: any) {
         res.status(500).json({ error: 'Unable to complete this request.' });
