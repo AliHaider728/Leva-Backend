@@ -23,7 +23,9 @@ cpSync(join(rootDir, 'package.json'), join(deployDir, 'package.json'));
 cpSync(join(rootDir, 'package-lock.json'), join(deployDir, 'package-lock.json'));
 cpSync(join(rootDir, 'app.js'), join(deployDir, 'app.js'));
 
-cpSync(join(rootDir, '.env.example'), join(deployDir, '.env.example'));
+if (existsSync(join(rootDir, '.env.example'))) {
+  cpSync(join(rootDir, '.env.example'), join(deployDir, '.env.example'));
+}
 
 writeFileSync(
   join(deployDir, 'CPANEL-README.txt'),

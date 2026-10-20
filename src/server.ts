@@ -77,7 +77,7 @@ const corsOptions: CorsOptions = {
     if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('This origin is not permitted.'));
+      callback(null, false);
     }
   },
   credentials: true,

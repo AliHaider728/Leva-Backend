@@ -1,51 +1,176 @@
-# LEVA Backend
+# LEVA Backend API (Express + TypeScript + MySQL)
 
-Express + TypeScript commerce API backed by MySQL. It retains products, inventory, variants, categories, bundles, routines, coupons, accounts, wishlists, moderated reviews, audio reviews, contacts, COD orders and tracking. New order IDs use the LEV- prefix. Existing stored records are not rebranded automatically.
+High-performance commerce API for LEVA Pakistan (`https://leva.pk`), deployed at `https://admin.leva.pk`. Built with Node.js, Express, TypeScript, and MySQL, with native Cloudflare R2 media storage and transactional order processing.
 
-## Configuration
+---
 
-.env.example contains names with blank values only. Supply deployment environment values securely; do not commit secrets. DB_HOST, DB_PORT, DB_USER, DB_PASSWORD and DB_NAME configure MySQL. DB_PORT defaults to 3306. No database is contacted by build or the isolated tests.
+## 1. Tech Stack
 
-FRONTEND_URL and comma-separated CORS_ORIGINS configure storefront origins. Requests from other browser origins cannot perform mutations. ADMIN_APP_URL supplies admin links. STORE_NAME defaults to LEVA; SUPPORT_EMAIL, SUPPORT_PHONE and optional JSON STORE_SOCIAL_LINKS supply default support/social settings. Existing settings remain editable in MySQL.
+- **Runtime**: Node.js 20+ / 22+ / 24+
+- **Language**: TypeScript 5 (Strict Mode)
+- **Framework**: Express 4 with modular routers
+- **Database**: MySQL 8.x with connection pooling (`mysql2/promise`)
+- **Storage**: Cloudflare R2 Object Storage (`@aws-sdk/client-s3`)
+- **Image Processing**: Sharp (WebP auto-optimization & thumbnail generation)
+- **Email Service**: Nodemailer over SSL/TLS (`mail.leva.pk:465`)
+- **Authentication**: JWT signed session tokens stored in secure, HttpOnly cookies
+- **Security & Reliability**: Helmet, CORS origin whitelist, IP rate limiting, Zod schema validation, transaction-safe order placement
 
-JWT_SECRET signs cookie sessions. COOKIE_NAME defaults to leva_admin_token; COOKIE_DOMAIN, COOKIE_SECURE and COOKIE_SAME_SITE control cookie deployment. Production cookies default to Secure, HttpOnly and SameSite=None, requiring HTTPS. Set TRUST_PROXY_HOPS only to your verified reverse-proxy hop count; an unrestricted proxy trust setting is not used.
+---
 
-Images and audio use R2_* storage. Category/review/detail images also support CLOUDINARY_*. R2 TLS certificate validation is enabled. Product image uploads are limited to 5 MB; audio uploads to 10 MB, supported MIME types and matching file signatures.
+## 2. Directory Structure
 
-Email is sent with Nodemailer over SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM. SUPPORT_EMAIL is the reply/support address. NEW_ORDER_NOTIFICATION_EMAILS supplies notification recipients. Password reset tokens expire after 15 minutes. SMTP acceptance and customer receipt are different outcomes.
+```
+backend/
+├── migrations/             # SQL schemas & seed files
+│   ├── schema.sql          # Core table definitions
+│   └── seed-leva-products.json # Production product & bundle seed data
+├── scripts/                # Database migration & admin provisioning scripts
+├── src/
+│   ├── config/             # Session cookies, features, store configuration
+│   ├── lib/                # Cloudflare R2, image processing, inventory, checkout logic
+│   ├── middleware/         # JWT auth, RBAC (admin/super_admin), CORS, rate limiting
+│   ├── mysql-lib/          # Direct MySQL transactional queries & connection pool
+│   ├── mysql-routes/       # Express route handlers
+│   │   ├── auth.ts         # Login, logout, session verification, password reset
+│   │   ├── orders.ts       # COD checkout, order status, courier tracking
+│   │   ├── products.ts     # Storefront & admin product CRUD
+│   │   ├── categories.ts   # Category management
+│   │   ├── bundles.ts      # Bundle & ritual deals
+│   │   ├── coupons.ts      # Coupon creation & transactional validation
+│   │   ├── reviews.ts      # Customer reviews & admin moderation
+│   │   ├── settings.ts     # Store contact info, WhatsApp, free delivery threshold
+│   │   └── upload.ts       # Cloudflare R2 direct image upload endpoint
+│   ├── utils/              # Email templates (order notifications, receipts)
+│   └── server.ts           # App bootstrap, route mounting, error handling
+├── .env                    # Unified server environment configuration
+├── package.json
+└── tsconfig.json
+```
 
-META_* and TIKTOK_* configure marketing integrations, which run only with the tracking feature enabled. Revalidation uses FRONTEND_URL and SITEMAP_REVALIDATION_SECRET. No store domains/contact information are embedded in integration code.
+---
 
-## Feature flags
+## 3. Database Schema & Architecture
 
-GET /api/features returns a flat object containing categories, variants, bundles, routineBuilder, coupons, reviews, audioReviews, wishlist, contact and tracking. PUT /api/features accepts a partial boolean object and requires admin or super_admin authentication. Persisted flags live in settings.featureFlags and override FEATURE_* environment defaults.
+The application connects to MySQL (`tecnosphere_leva`) using connection pooling.
 
-LEVA defaults: bundles, coupons, reviews, wishlist and contact on; categories, variants, routineBuilder, audioReviews and tracking off. Disabled feature endpoints return 404. Before the migration, public reads use environment defaults, while switching flags requires the storage migration. Other database errors return 503 rather than enabling features silently.
+### Core Tables
+- `products`: Product master (`id`, `slug`, `name`, `sku`, `price`, `compare_at_price`, `stock`, `is_active`, `description`, `ingredients`, `usage`, `benefit`, `faq`).
+- `product_images`: Multiple Cloudflare R2 images per product with `is_primary` and `display_order`.
+- `categories` & `product_categories`: Hierarchical category assignments.
+- `bundles` & `bundle_products`: Predefined bundles and savings percentages with dynamic component linking.
+- `orders` & `order_items`: Order records with unique `checkoutRequestId` constraint, financial breakdown (subtotal, shipping, discount, total), customer contact, shipping address JSON, and `status`.
+- `coupons`: Discount codes (percentage or fixed PKR), usage counts, limits, and expiry timestamps.
+- `reviews`: Customer reviews with rating (1-5) and approval moderation flag.
+- `users`: Admin and customer accounts with bcrypt-hashed credentials and roles (`admin`, `super_admin`, `customer`).
+- `settings`: Key-value store configuration, including WhatsApp support number, free shipping threshold, and feature flags.
 
-## Build and test without database access
+---
 
-- npm run build: safely clean generated dist output and compile TypeScript; does not start the API or run migrations.
-- npm test: isolated HTTP and transaction tests. The real MySQL driver is blocked; database calls and mail are intercepted. No test credentials are saved to files.
-- npm run dev: start the API; this can access MySQL.
-- npm start: run the compiled API, including health checks that can access MySQL.
-- node build-cpanel.mjs: compile and create deploy/leva-backend plus a deployment zip. Only the blank .env.example is included; .env files are filtered out. Configure production secrets separately.
+## 4. Key API Routes
 
-Use a supported Node.js version compatible with dependencies (22 or 24 recommended). Legacy sample seed/import/delete scripts and database exports/backups are excluded.
+### Public Storefront Routes
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/products` | Retrieve active product catalog with images and categories |
+| `GET` | `/api/products/:slug` | Retrieve single product details, ingredients, usage, and reviews |
+| `GET` | `/api/categories` | Retrieve all active product categories |
+| `GET` | `/api/bundles` | Retrieve active bundles with included items and discounts |
+| `POST` | `/api/orders` | Place Cash on Delivery order (atomically validates prices & stock) |
+| `GET` | `/api/orders/track` | Track order by `orderId` (`LEV-xxxxxx`) and phone number |
+| `POST` | `/api/coupons/validate` | Transactionally test a coupon against cart items |
+| `GET` | `/api/settings` | Public store configuration (contacts, delivery rules) |
 
-## Explicit future database steps
+### Administrative Routes (Requires Admin Cookie Session)
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Authenticate admin user and issue secure HttpOnly cookie |
+| `POST` | `/api/auth/logout` | Clear authentication cookie |
+| `GET` | `/api/auth/me` | Fetch currently logged-in account details |
+| `GET` | `/api/orders` | Paginated orders list with search (phone, name, order ID) and status filter |
+| `PUT` | `/api/orders/:id/status` | Update order state (`pending`, `confirmed`, `processing`, `shipped`, `delivered`, `cancelled`) |
+| `PUT` | `/api/orders/:id/tracking` | Assign courier tracking number |
+| `POST` | `/api/products` | Create product with SKU, prices, stock, and R2 images |
+| `PUT` | `/api/products/:id` | Update product details and inventory |
+| `POST` | `/api/bundles` | Create/update product bundles |
+| `POST` | `/api/coupons` | Create discount coupon |
+| `PUT` | `/api/reviews/:id/approve` | Approve/reject customer reviews |
+| `POST` | `/api/upload/image` | Upload image buffer directly to Cloudflare R2; returns public CDN URL |
+| `PUT` | `/api/settings` | Update store settings and feature flags |
 
-These commands are not run during build, tests or packaging:
+---
 
-1. Back up the database and inspect existing schema/checkout ID duplicates.
-2. npm run migrate:hardening: add settings.featureFlags, reset attempt storage, routine component snapshots and a unique checkoutRequestId index. It refuses duplicate request IDs instead of deleting orders. DDL can commit partially in MySQL; resolve any migration error before retrying. Existing sufficiently wide token columns are preserved.
-3. npm run admin:setup: supply ADMIN_EMAIL in the process environment or interactive prompt; enter the chosen password at the hidden prompt. ADMIN_PASSWORD may be supplied only as a temporary process environment variable, never in a file. The script stores only a bcrypt hash in MySQL and creates/updates the named admin account. It never prints or writes the password to a file.
+## 5. Security & Order Integrity
 
-Checkout fails closed if its unique storage constraint is absent. Database migration and account setup remain explicit deployment tasks.
+1. **Server-Authoritative Pricing**: All item prices, bundle discounts, shipping fees, and coupon calculations are computed strictly from database records inside a database transaction. Any price or total sent by the client is discarded.
+2. **Idempotent Order Creation**: `checkoutRequestId` guarantees network retries or double clicks cannot create duplicate orders or deduct inventory twice.
+3. **Atomic Stock Decrement & Rollback**: When an order is placed, inventory is decremented atomically. If insertion fails at any point, the entire transaction rolls back.
+4. **Order Cancellation Handling**: If an order is cancelled by admin, component snapshots restore the exact quantities back into available inventory.
+5. **Automated Email Notifications**: Uses Nodemailer with TLS to immediately dispatch HTML confirmation emails to the customer and alert the operations team (`sales@leva.pk`).
 
-## Security and API compatibility
+---
 
-Prices, offers, bundle/routine discounts, coupon usage and shipping are loaded/calculated on the server in an order transaction. Client price/total/shipping/discount fields are ignored. Coupon expiry and usage limits are checked atomically. Repeated checkoutRequestId values return the same owned checkout; the phone/total heuristic is removed. Authenticated orders save user_id. Cancellation restores stored component snapshots and cannot reopen a cancelled order.
+## 6. Cloudflare R2 Storage Configuration
 
-All new orders use COD; other supplied payment methods are rejected. Public review responses omit reviewerEmail. Password changes require currentPassword. Reset tokens are random, hashed, single-use and expire after 15 minutes; per-IP/account rate limits and persisted attempt limits apply. Helmet, 1 MB JSON/form body limits, bounded upload sizes and sanitized error handling are enabled. Rate-limit stores are process-local; use a shared store for deployments with multiple API instances.
+Image uploads through `/api/upload/image` process images with Sharp to WebP format and upload directly to Cloudflare R2:
+- **Bucket**: `leva-skincare`
+- **CDN Base**: `https://pub-a072adc556d047e0bacc05300ca63f83.r2.dev`
 
-See docs/API_CONTRACT.md for current request shapes. Admin order lists now always return a paginated object, capped at 100 per page. Coupon validation needs product IDs/quantities rather than a client subtotal. Reset tokens are 64-character values rather than numeric codes. Independently deployed frontends must adopt these contracts; frontend files are not changed here.
+---
+
+## 7. Environment Configuration
+
+All configuration is consolidated into a single `.env` file:
+
+```env
+PORT=5001
+JWT_SECRET=your-secure-jwt-secret
+
+# Frontend Origins (CORS)
+FRONTEND_URL=https://leva.pk
+
+# Database (MySQL)
+LEVA_MYSQL_HOST=195.201.164.48
+LEVA_MYSQL_DATABASE=tecnosphere_leva
+LEVA_MYSQL_USER=tecnosphere_leva
+LEVA_MYSQL_PASSWORD=your-mysql-password
+
+# Email (SMTP)
+SMTP_HOST=mail.leva.pk
+SMTP_PORT=465
+SMTP_USER=sales@leva.pk
+SMTP_PASS=your-smtp-password
+SMTP_FROM="LEVA <sales@leva.pk>"
+SUPPORT_EMAIL=sales@leva.pk
+NEW_ORDER_NOTIFICATION_EMAILS=sales@leva.pk,abraransarise@gmail.com,levaskincare01@gmail.com
+
+# Cloudflare R2 Object Storage
+R2_ACCOUNT_ID=081607919084e8232f264f5c72fd51a5
+R2_ACCESS_KEY_ID=your-r2-access-key
+R2_SECRET_ACCESS_KEY=your-r2-secret-key
+R2_BUCKET_NAME=leva-skincare
+R2_ENDPOINT=https://081607919084e8232f264f5c72fd51a5.r2.cloudflarestorage.com
+R2_PUBLIC_URL=https://pub-a072adc556d047e0bacc05300ca63f83.r2.dev
+
+# Google Analytics
+GA_MEASUREMENT_ID=G-5ELNQLZJB0
+```
+
+---
+
+## 8. Development & Deployment
+
+### Run Locally
+```bash
+npm install
+npm run dev
+```
+
+### Production Build
+```bash
+npm run build
+npm start
+```
+
+### Git Repository
+- GitHub: `https://github.com/AliHaider728/Leva-Backend.git` (Branch: `main`)

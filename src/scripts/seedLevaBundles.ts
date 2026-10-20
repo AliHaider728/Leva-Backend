@@ -22,7 +22,7 @@ const seedBundles: SeedBundle[] = [
     name: 'The Complete Ritual',
     slug: 'complete-ritual',
     description: 'A complete three-step LEVA ritual: cleanse with LEVA Face Wash, care with LEVA Cream, then finish with LEVA Tinted Sunblock SPF 50 PA+++.',
-    image: '/images/leva-complete-ritual-bundle.webp',
+    image: 'https://pub-a072adc556d047e0bacc05300ca63f83.r2.dev/images/leva-complete-ritual-bundle.webp',
     discountType: 'percentage',
     discountValue: 15,
     discountPercent: 15,

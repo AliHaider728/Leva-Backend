@@ -10,7 +10,7 @@
     "stockQuantity": 18,
     "brand": "LEVA",
     "images": [
-      "/images/brightening-cream-main.webp"
+      "https://pub-a072adc556d047e0bacc05300ca63f83.r2.dev/images/brightening-cream-main.webp"
     ],
     "isBestseller": true,
     "isNewArrival": false,
@@ -45,7 +45,7 @@
     "stockQuantity": 12,
     "brand": "LEVA",
     "images": [
-      "/images/tinted-sunscreen-main.webp"
+      "https://pub-a072adc556d047e0bacc05300ca63f83.r2.dev/images/tinted-sunscreen-main.webp"
     ],
     "isBestseller": false,
     "isNewArrival": true,
@@ -80,7 +80,7 @@
     "stockQuantity": 7,
     "brand": "LEVA",
     "images": [
-      "/images/face-wash-main.webp"
+      "https://pub-a072adc556d047e0bacc05300ca63f83.r2.dev/images/face-wash-main.webp"
     ],
     "isBestseller": false,
     "isNewArrival": false,
