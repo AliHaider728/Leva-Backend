@@ -1,6 +1,6 @@
 export const triggerSitemapRevalidation = async () => {
-  const secret = process.env.SITEMAP_REVALIDATION_SECRET;
-  const frontendUrl = process.env.FRONTEND_URL?.trim();
+  const secret = process.env.SITEMAP_REVALIDATION_SECRET || process.env.REVALIDATION_SECRET || 'V9x!pR4mT8_kL2qN7wZ5@cD3yH6sF1bJ9uG0eX4a';
+  const frontendUrl = (process.env.FRONTEND_URL || 'https://leva.pk').trim().replace(/\/+$/, '');
 
   if (!secret || !frontendUrl) {
     console.warn('[Sitemap] Revalidation skipped: SITEMAP_REVALIDATION_SECRET or FRONTEND_URL is not configured.');

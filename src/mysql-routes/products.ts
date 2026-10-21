@@ -118,7 +118,7 @@ async function enrichProducts(conn: any, products: any[]) {
 router.get('/', authenticateIfPresent, async (req: AuthRequest, res: Response) => {
   try {
     const adminRead = req.headers['x-leva-storefront'] !== '1' && ['admin', 'super_admin'].includes(req.user?.role || '');
-    if (adminRead) { res.set('Cache-Control', 'no-store, max-age=0'); } else { res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300'); }
+    res.set('Cache-Control', 'no-store, max-age=0');
     const { category, search, isVisible, limit } = req.query;
 
     const clauses: string[] = [];
@@ -157,7 +157,7 @@ router.get('/', authenticateIfPresent, async (req: AuthRequest, res: Response) =
 // GET related products
 router.get('/:idOrSlug/related', authenticateIfPresent, async (req: AuthRequest, res: Response) => {
   try {
-    res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300');
+    res.set('Cache-Control', 'no-store, max-age=0');
     const product = await getFullProduct(pool, req.params.idOrSlug);
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
@@ -194,7 +194,7 @@ router.get('/:idOrSlug/related', authenticateIfPresent, async (req: AuthRequest,
 router.get('/:idOrSlug', authenticateIfPresent, async (req: AuthRequest, res: Response) => {
   try {
     const adminRead = req.headers['x-leva-storefront'] !== '1' && ['admin', 'super_admin'].includes(req.user?.role || '');
-    if (adminRead) { res.set('Cache-Control', 'no-store, max-age=0'); } else { res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300'); }
+    res.set('Cache-Control', 'no-store, max-age=0');
     const product = await getFullProduct(pool, req.params.idOrSlug, adminRead);
     if (!product) return res.status(404).json({ error: 'Product not found' });
     res.json(product);
@@ -270,8 +270,21 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res: 
     const now = new Date();
 
     const price = Number(body.price);
-    const originalPrice = body.originalPrice ? Number(body.originalPrice) : null;
-    const discountPercent = originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
+    if (!Number.isFinite(price) || price <= 0 || (body.originalPrice != null && body.originalPrice !== '' && Number(body.originalPrice) !== 0 && Number(body.originalPrice) !== price && (!Number.isFinite(Number(body.originalPrice)) || Number(body.originalPrice) < price))) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Regular price must exceed a positive selling price' });
+    }
+    for (const variant of body.variations || []) {
+      if (variant.salePrice === '' || variant.salePrice == null) variant.salePrice = null;
+      else if (!Number.isFinite(Number(variant.salePrice)) || Number(variant.salePrice) <= 0 || Number(variant.salePrice) >= Number(variant.regularPrice || price)) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Variation sale price must be positive and lower than regular price' });
+      }
+    }
+    const hasExplicitOriginalPrice = 'originalPrice' in req.body;
+    const rawOriginalPrice = hasExplicitOriginalPrice ? req.body.originalPrice : body.originalPrice;
+    const originalPrice = rawOriginalPrice != null && Number(rawOriginalPrice) > price ? Number(rawOriginalPrice) : null;
+    const discountPercent = originalPrice && originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
 
     // Sanitize productDetailBlocks and CSS
     let productDetailBlocks: any[] = [];
@@ -413,8 +426,21 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
 
     const inventory = normalizeInventory(body);
     const price = Number(body.price);
-    const originalPrice = body.originalPrice ? Number(body.originalPrice) : null;
-    const discountPercent = originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
+    if (!Number.isFinite(price) || price <= 0 || (body.originalPrice != null && body.originalPrice !== '' && Number(body.originalPrice) !== 0 && Number(body.originalPrice) !== price && (!Number.isFinite(Number(body.originalPrice)) || Number(body.originalPrice) < price))) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Regular price must exceed a positive selling price' });
+    }
+    for (const variant of body.variations || []) {
+      if (variant.salePrice === '' || variant.salePrice == null) variant.salePrice = null;
+      else if (!Number.isFinite(Number(variant.salePrice)) || Number(variant.salePrice) <= 0 || Number(variant.salePrice) >= Number(variant.regularPrice || price)) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Variation sale price must be positive and lower than regular price' });
+      }
+    }
+    const hasExplicitOriginalPrice = 'originalPrice' in req.body;
+    const rawOriginalPrice = hasExplicitOriginalPrice ? req.body.originalPrice : body.originalPrice;
+    const originalPrice = rawOriginalPrice != null && Number(rawOriginalPrice) > price ? Number(rawOriginalPrice) : null;
+    const discountPercent = originalPrice && originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
 
     let productDetailBlocks: any[] = [];
     try { productDetailBlocks = normalizeProductDetailBlocks(body.productDetailBlocks); } catch { productDetailBlocks = []; }
