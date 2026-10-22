@@ -165,8 +165,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
             }
         }
         else {
-            conditions.push('user_id = ?');
-            params.push(req.user?.userId);
+            conditions.push('(user_id = ? OR (guestEmail IS NOT NULL AND LOWER(guestEmail) = LOWER(?)))');
+            params.push(req.user?.userId || '', req.user?.email || '');
         }
         if (conditions.length > 0) {
             const whereClause = ' WHERE ' + conditions.join(' AND ');
@@ -220,39 +220,109 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
         res.status(500).json({ error: 'Unable to complete this request.' });
     }
 });
-// Helper for public order tracking
+// Helper for public order tracking — accepts single unified query (Order ID, WhatsApp/Mobile, or Email)
 async function handlePublicOrderTrack(req: Request, res: Response) {
     try {
-        const orderIdentifier = String(req.body?.orderId || req.body?.order || req.body?.trackingNumber || req.query?.orderId || req.query?.order || req.query?.trackingNumber || '').trim();
+        const rawInput = String(
+            req.body?.query ||
+            req.body?.orderId ||
+            req.body?.order ||
+            req.body?.trackingNumber ||
+            req.body?.email ||
+            req.body?.phone ||
+            req.query?.query ||
+            req.query?.orderId ||
+            req.query?.order ||
+            req.query?.trackingNumber ||
+            req.query?.email ||
+            req.query?.phone ||
+            ''
+        ).trim();
+
         const rawPhone = String(req.body?.phone || req.query?.phone || '').trim();
 
-        if (!orderIdentifier) {
-            return res.status(400).json({ error: 'Please enter your order number or tracking code.' });
+        if (!rawInput && !rawPhone) {
+            return res.status(400).json({ error: 'Please enter your Order ID, WhatsApp / Mobile number, or Email address.' });
         }
 
-        // Search by orderId, internal id, or courier trackingNumber
-        const [orders] = await pool.execute(
-            `SELECT ${ORDER_COLS} FROM orders WHERE orderId = ? OR id = ? OR trackingNumber = ?`,
-            [orderIdentifier, orderIdentifier, orderIdentifier]
+        const input = rawInput || rawPhone;
+        const cleanDigits = (val: string) => String(val || '').replace(/\D/g, '');
+        const digits = cleanDigits(input);
+        const isEmail = input.includes('@');
+        const isPhone = digits.length >= 7;
+
+        let matchingOrders: any[] = [];
+
+        // 1. Direct match on orderId, id, or trackingNumber
+        const [idMatches]: any = await pool.execute(
+            `SELECT ${ORDER_COLS} FROM orders WHERE orderId = ? OR id = ? OR trackingNumber = ? ORDER BY createdAt DESC LIMIT 5`,
+            [input, input, input]
         );
-
-        const ordersArr = orders as any[];
-        if (ordersArr.length === 0) {
-            return res.status(404).json({ error: 'No order found matching these details. Please check your order number or tracking code.' });
+        if (idMatches && idMatches.length > 0) {
+            matchingOrders = idMatches;
         }
 
-        const order = ordersArr[0];
+        // 2. Email match (case-insensitive)
+        if (matchingOrders.length === 0 && isEmail) {
+            const lowerEmail = input.toLowerCase();
+            const [emailMatches]: any = await pool.execute(
+                `SELECT ${ORDER_COLS} FROM orders WHERE LOWER(guestEmail) = ? OR LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(shippingAddress, '$.email')), '')) = ? ORDER BY createdAt DESC LIMIT 10`,
+                [lowerEmail, lowerEmail]
+            );
+            if (emailMatches && emailMatches.length > 0) {
+                matchingOrders = emailMatches;
+            }
+        }
+
+        // 3. Phone / WhatsApp match
+        if (matchingOrders.length === 0 && isPhone) {
+            const tail7 = digits.slice(-7);
+            const [phoneCandidates]: any = await pool.execute(
+                `SELECT ${ORDER_COLS} FROM orders WHERE guestPhone LIKE ? OR shippingAddress LIKE ? ORDER BY createdAt DESC LIMIT 25`,
+                [`%${tail7}%`, `%${tail7}%`]
+            );
+            const candidates = phoneCandidates as any[];
+            const targetTail = digits.slice(-9);
+            const matched = candidates.filter(o => {
+                const p1 = cleanDigits(o.guestPhone);
+                const ship = typeof o.shippingAddress === 'string' ? JSON.parse(o.shippingAddress || '{}') : (o.shippingAddress || {});
+                const p2 = cleanDigits(ship.phone);
+                return (p1 && p1.endsWith(targetTail)) || (p2 && p2.endsWith(targetTail)) ||
+                       (digits && digits.endsWith(p1.slice(-9))) || (digits && digits.endsWith(p2.slice(-9))) ||
+                       p1 === digits || p2 === digits;
+            });
+            if (matched.length > 0) {
+                matchingOrders = matched;
+            }
+        }
+
+        // 4. Fallback: partial orderId match
+        if (matchingOrders.length === 0 && input.length >= 4) {
+            const [partialMatches]: any = await pool.execute(
+                `SELECT ${ORDER_COLS} FROM orders WHERE orderId LIKE ? ORDER BY createdAt DESC LIMIT 5`,
+                [`%${input}%`]
+            );
+            if (partialMatches && partialMatches.length > 0) {
+                matchingOrders = partialMatches;
+            }
+        }
+
+        if (matchingOrders.length === 0) {
+            return res.status(404).json({
+                error: 'No order found matching these details. Please check your Order ID, WhatsApp / Mobile number, or Email.'
+            });
+        }
+
+        const order = matchingOrders[0];
         const shipAddr = typeof order.shippingAddress === 'string' ? JSON.parse(order.shippingAddress) : (order.shippingAddress || {});
 
-        // If phone is provided, verify it matches
-        if (rawPhone) {
-            const cleanDigits = (val: string) => String(val || '').replace(/\D/g, '');
+        // If secondary phone was explicitly passed separately from an orderId, verify phone
+        if (rawPhone && rawPhone !== input && !isPhone) {
             const phoneDigits = cleanDigits(rawPhone);
             if (phoneDigits.length >= 7) {
                 const dbPhone1 = cleanDigits(order.guestPhone);
                 const dbPhone2 = cleanDigits(shipAddr.phone);
                 const targetTail = phoneDigits.slice(-9);
-
                 const phoneMatches = 
                     (targetTail.length >= 7 && dbPhone1.endsWith(targetTail)) ||
                     (targetTail.length >= 7 && dbPhone2.endsWith(targetTail)) ||
@@ -313,6 +383,16 @@ async function handlePublicOrderTrack(req: Request, res: Response) {
             }
         ];
 
+        // Summary of all matching orders if multiple exist
+        const multipleOrders = matchingOrders.length > 1 ? matchingOrders.map((o: any) => ({
+            orderId: o.orderId,
+            orderNumber: o.orderId,
+            date: o.createdAt,
+            status: o.status === 'Processing' ? 'Order Confirmed' : (o.status || 'Pending'),
+            total: Number(o.total || 0),
+            trackingNumber: o.trackingNumber || null
+        })) : undefined;
+
         return res.json({
             orderNumber: fullOrder.orderId,
             orderId: fullOrder.orderId,
@@ -342,7 +422,8 @@ async function handlePublicOrderTrack(req: Request, res: Response) {
                 status: h.status === 'Processing' ? 'Order Confirmed' : h.status,
                 note: h.note || '',
                 timestamp: h.timestamp
-            }))
+            })),
+            multipleOrders
         });
     } catch (err: any) {
         console.error('Order tracking error:', err);
