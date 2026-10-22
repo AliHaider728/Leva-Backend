@@ -150,7 +150,7 @@ app.use('/api/contact', (req,res,next)=>req.method==='POST'?limiterForContact(re
 app.post('/api/coupons/validate',limiterForCoupons);
 app.use('/api', (req:any,res,next)=>{
  if(req.headers['x-leva-admin-request']==='1')return adminAuthenticate(req,res,()=>adminAuthorize(req,res,next));
- optionalAdminAuthenticate(req,res,()=>{const isAdmin=['admin','super_admin'].includes(req.user?.role);const publicRead=['GET','HEAD'].includes(req.method)&&req.headers['x-leva-storefront']==='1'&&!req.path.includes('/admin')&&req.query.all!=='true'&&/^\/(products|bundles|settings|categories|global-attributes|reviews\/product|audio-reviews)(\/|$)/.test(req.path);const publicWrite=req.method==='POST'&&['/orders','/contact','/reviews','/coupons/validate','/auth/login','/auth/logout','/auth/register','/auth/forgot-password','/auth/reset-password'].includes(req.path);if(isAdmin&&!publicWrite&&!publicRead)return adminAuthorize(req,res,next);next();});
+ optionalAdminAuthenticate(req,res,()=>{const isAdmin=['admin','super_admin'].includes(req.user?.role);const publicRead=['GET','HEAD'].includes(req.method)&&req.headers['x-leva-storefront']==='1'&&!req.path.includes('/admin')&&req.query.all!=='true'&&/^\/(products|bundles|settings|categories|global-attributes|reviews\/product|audio-reviews|orders\/track)(\/|$)/.test(req.path);const publicWrite=req.method==='POST'&&['/orders','/orders/track','/contact','/reviews','/coupons/validate','/auth/login','/auth/logout','/auth/register','/auth/forgot-password','/auth/reset-password'].includes(req.path);if(isAdmin&&!publicWrite&&!publicRead)return adminAuthorize(req,res,next);next();});
 });
 app.use('/api/admin',adminRoutes);
 app.use('/api/features',featureRoutes);

@@ -1,3 +1,5 @@
+import { sessionCookieName, sessionCookieOptions } from '../config/sessionCookie.js';
+import jwt from 'jsonwebtoken';
 import { checkoutPayment } from '../lib/checkoutPayment.js';
 import { calculateCheckout } from '../mysql-lib/checkout.js';
 import { ClientError, publicError } from '../lib/httpError.js';
@@ -106,12 +108,23 @@ export function mapOrderForFrontend(o: any) {
         price: Number(item.price || 0),
         quantity: Number(item.quantity || 1)
     }));
+    const customerName = o.customerName || shipAddr.fullName || shipAddr.name || (o.guestEmail ? o.guestEmail.split('@')[0] : '') || 'Customer';
+    const email = o.guestEmail || o.email || '';
+    const phone = o.guestPhone || o.phone || shipAddr.phone || '';
     return {
         ...o,
-        shippingAddress: shipAddr,
-        customerName: o.customerName || shipAddr.fullName || shipAddr.name || o.guestEmail || 'Customer',
-        email: o.guestEmail || o.email,
-        phone: o.guestPhone || o.phone || shipAddr.phone,
+        shippingAddress: {
+            fullName: shipAddr.fullName || shipAddr.name || customerName,
+            phone: shipAddr.phone || phone,
+            street: shipAddr.street || shipAddr.address || '',
+            city: shipAddr.city || '',
+            province: shipAddr.province || shipAddr.state || '',
+            notes: shipAddr.notes || o.notes || '',
+            ...shipAddr
+        },
+        customerName,
+        email,
+        phone,
         date: dateStr,
         total: Number(o.total || 0),
         subtotal: Number(o.subtotal || 0),
@@ -136,8 +149,14 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
                 params.push(email.trim().toLowerCase());
             }
             if (typeof status === 'string' && status !== 'all' && status.trim()) {
-                conditions.push('status = ?');
-                params.push(status.trim());
+                const s = status.trim();
+                if (s === 'Order Confirmed' || s === 'Processing') {
+                    conditions.push('(status = ? OR status = ?)');
+                    params.push('Order Confirmed', 'Processing');
+                } else {
+                    conditions.push('status = ?');
+                    params.push(s);
+                }
             }
             if (typeof search === 'string' && search.trim()) {
                 conditions.push("(orderId LIKE ? OR guestEmail LIKE ? OR COALESCE(JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(shippingAddress),shippingAddress,'{}'), '$.fullName')),JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(shippingAddress),shippingAddress,'{}'), '$.name')),'') LIKE ?)");
@@ -201,6 +220,138 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
         res.status(500).json({ error: 'Unable to complete this request.' });
     }
 });
+// Helper for public order tracking
+async function handlePublicOrderTrack(req: Request, res: Response) {
+    try {
+        const orderIdentifier = String(req.body?.orderId || req.body?.order || req.body?.trackingNumber || req.query?.orderId || req.query?.order || req.query?.trackingNumber || '').trim();
+        const rawPhone = String(req.body?.phone || req.query?.phone || '').trim();
+
+        if (!orderIdentifier) {
+            return res.status(400).json({ error: 'Please enter your order number or tracking code.' });
+        }
+
+        // Search by orderId, internal id, or courier trackingNumber
+        const [orders] = await pool.execute(
+            `SELECT ${ORDER_COLS} FROM orders WHERE orderId = ? OR id = ? OR trackingNumber = ?`,
+            [orderIdentifier, orderIdentifier, orderIdentifier]
+        );
+
+        const ordersArr = orders as any[];
+        if (ordersArr.length === 0) {
+            return res.status(404).json({ error: 'No order found matching these details. Please check your order number or tracking code.' });
+        }
+
+        const order = ordersArr[0];
+        const shipAddr = typeof order.shippingAddress === 'string' ? JSON.parse(order.shippingAddress) : (order.shippingAddress || {});
+
+        // If phone is provided, verify it matches
+        if (rawPhone) {
+            const cleanDigits = (val: string) => String(val || '').replace(/\D/g, '');
+            const phoneDigits = cleanDigits(rawPhone);
+            if (phoneDigits.length >= 7) {
+                const dbPhone1 = cleanDigits(order.guestPhone);
+                const dbPhone2 = cleanDigits(shipAddr.phone);
+                const targetTail = phoneDigits.slice(-9);
+
+                const phoneMatches = 
+                    (targetTail.length >= 7 && dbPhone1.endsWith(targetTail)) ||
+                    (targetTail.length >= 7 && dbPhone2.endsWith(targetTail)) ||
+                    (dbPhone1.length >= 7 && phoneDigits.endsWith(dbPhone1.slice(-9))) ||
+                    (dbPhone2.length >= 7 && phoneDigits.endsWith(dbPhone2.slice(-9))) ||
+                    dbPhone1 === phoneDigits ||
+                    dbPhone2 === phoneDigits;
+
+                if (!phoneMatches) {
+                    return res.status(404).json({ error: 'The mobile number does not match this order. Please verify your details.' });
+                }
+            }
+        }
+
+        const fullOrder = await getFullOrder(pool, order.orderId);
+        if (!fullOrder) {
+            return res.status(404).json({ error: 'Order details could not be retrieved.' });
+        }
+
+        const mapped = mapOrderForFrontend(fullOrder);
+        const rawStatus = mapped.status || 'Pending';
+        const displayStatus = rawStatus === 'Processing' ? 'Order Confirmed' : rawStatus;
+        const isCancelled = displayStatus === 'Cancelled';
+
+        // Real timeline stages
+        const stages = [
+            {
+                key: 'placed',
+                label: 'Order Placed',
+                description: 'We have received your order.',
+                completed: true,
+                current: displayStatus === 'Pending',
+                date: fullOrder.createdAt
+            },
+            {
+                key: 'confirmed',
+                label: 'Order Confirmed',
+                description: 'Order confirmed and in preparation.',
+                completed: ['Order Confirmed', 'Processing', 'Shipped', 'Delivered'].includes(displayStatus),
+                current: displayStatus === 'Order Confirmed' || displayStatus === 'Processing',
+                date: fullOrder.statusHistory?.find((h: any) => h.status === 'Order Confirmed' || h.status === 'Processing')?.timestamp || null
+            },
+            {
+                key: 'shipped',
+                label: 'Shipped',
+                description: fullOrder.trackingNumber ? `Handed over to courier (Tracking: ${fullOrder.trackingNumber})` : 'Order dispatched with courier.',
+                completed: ['Shipped', 'Delivered'].includes(displayStatus),
+                current: displayStatus === 'Shipped',
+                date: fullOrder.statusHistory?.find((h: any) => h.status === 'Shipped')?.timestamp || null
+            },
+            {
+                key: 'delivered',
+                label: 'Delivered',
+                description: 'Order successfully delivered to customer.',
+                completed: displayStatus === 'Delivered',
+                current: displayStatus === 'Delivered',
+                date: fullOrder.statusHistory?.find((h: any) => h.status === 'Delivered')?.timestamp || null
+            }
+        ];
+
+        return res.json({
+            orderNumber: fullOrder.orderId,
+            orderId: fullOrder.orderId,
+            date: mapped.date || fullOrder.createdAt,
+            createdAt: fullOrder.createdAt,
+            status: displayStatus,
+            isCancelled,
+            trackingNumber: fullOrder.trackingNumber || null,
+            city: shipAddr.city || '',
+            province: shipAddr.province || shipAddr.state || '',
+            paymentMethod: fullOrder.paymentMethod || 'Cash on Delivery (COD)',
+            deliveryEstimate: '2–4 working days',
+            subtotal: mapped.subtotal,
+            shippingFee: mapped.shippingFee,
+            discountAmount: mapped.discountAmount,
+            total: mapped.total,
+            items: (mapped.items || []).map((item: any) => ({
+                name: item.name || item.productName || 'LEVA Product',
+                quantity: Number(item.quantity || 1),
+                price: Number(item.price || 0),
+                total: Number(item.price || 0) * Number(item.quantity || 1),
+                image: item.image || '',
+                selectedVariant: item.selectedVariant || null
+            })),
+            stages,
+            statusHistory: (fullOrder.statusHistory || []).map((h: any) => ({
+                status: h.status === 'Processing' ? 'Order Confirmed' : h.status,
+                note: h.note || '',
+                timestamp: h.timestamp
+            }))
+        });
+    } catch (err: any) {
+        console.error('Order tracking error:', err);
+        return res.status(500).json({ error: 'Unable to track order right now. Please try again.' });
+    }
+}
+router.post('/track', handlePublicOrderTrack);
+router.get('/track', handlePublicOrderTrack);
+
 // GET single order by orderId
 router.get('/:orderId', authenticateToken, async (req: AuthRequest, res: Response) => {
     try {
@@ -227,7 +378,13 @@ router.post('/', authenticateIfPresent, async (req: AuthRequest, res: Response) 
     try {
         checkoutPayment(req.body.paymentMethod);
         const { customerName, phone, items, shippingAddress } = req.body;
-        const email = req.user?.email || req.body.email;
+        const submittedEmail = typeof req.body.email === 'string' && req.body.email.trim() ? req.body.email.trim() : '';
+        const isAdminUser = ['admin', 'super_admin'].includes(req.user?.role || '');
+        const isCustomerUser = req.user?.role === 'customer';
+        // For authenticated customers, link their customer account and use their account email.
+        // For guests or when an admin is logged in placing a test order, NEVER use admin email/account;
+        // preserve the submitted customer checkout details.
+        const email = (isCustomerUser && req.user?.email) ? req.user.email : submittedEmail;
         requestId = String(req.body.checkoutRequestId || '');
         if (!Array.isArray(items) || !items.length || items.length > 100)
             throw new ClientError('Order must contain between 1 and 100 items.');
@@ -245,7 +402,7 @@ router.post('/', authenticateIfPresent, async (req: AuthRequest, res: Response) 
             throw new ClientError('Checkout storage migration is required.', 503);
         const [existing] = await conn.execute('SELECT orderId,guestPhone,user_id FROM orders WHERE checkoutRequestId=?', [requestId]);
         if (existing.length) {
-            if (existing[0].guestPhone !== phone || (existing[0].user_id || null) !== (req.user?.userId || null))
+            if (existing[0].guestPhone !== phone || (!isAdminUser && (existing[0].user_id || null) !== (req.user?.userId || null)))
                 throw new ClientError('Checkout request ID is already in use.', 409);
             const result = mapOrderForFrontend(await getFullOrder(conn, existing[0].orderId));
             await conn.commit();
@@ -258,14 +415,17 @@ router.post('/', authenticateIfPresent, async (req: AuthRequest, res: Response) 
         const totals = await calculateCheckout(conn, items, coupon);
         const orderId = generateOrderId(), internalId = crypto.randomBytes(12).toString('hex'), now = new Date();
         const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
-        let customerUserId = req.user?.userId || null;
+        // Associate with customerUserId ONLY if authenticated user is an actual customer, not an admin
+        let customerUserId = isCustomerUser ? (req.user?.userId || null) : null;
         if (!customerUserId && normalizedEmail) {
             try {
-                const [userRows]: any = await conn.execute('SELECT id, phone FROM users WHERE email = ?', [normalizedEmail]);
+                const [userRows]: any = await conn.execute('SELECT id, phone, role FROM users WHERE email = ?', [normalizedEmail]);
                 if (userRows && userRows.length > 0) {
-                    customerUserId = userRows[0].id;
-                    if (!userRows[0].phone && phone) {
-                        await conn.execute('UPDATE users SET phone = ?, updatedAt = ? WHERE id = ?', [phone, now, customerUserId]);
+                    if (userRows[0].role === 'customer') {
+                        customerUserId = userRows[0].id;
+                        if (!userRows[0].phone && phone) {
+                            await conn.execute('UPDATE users SET phone = ?, updatedAt = ? WHERE id = ?', [phone, now, customerUserId]);
+                        }
                     }
                 } else {
                     customerUserId = crypto.randomBytes(12).toString('hex');
@@ -281,7 +441,16 @@ router.post('/', authenticateIfPresent, async (req: AuthRequest, res: Response) 
                 console.warn('Auto customer account creation warning:', userErr);
             }
         }
-        await conn.execute('INSERT INTO orders (id,orderId,user_id,guestEmail,guestPhone,total,subtotal,shippingFee,discountAmount,status,paymentMethod,shippingAddress,appliedCoupon,checkoutRequestId,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [internalId, orderId, customerUserId, normalizedEmail, phone, totals.total, totals.subtotal, totals.shippingFee, totals.discount, 'Pending', 'COD', JSON.stringify({ ...shippingAddress, fullName: customerName, phone }), coupon ? JSON.stringify({ code: coupon }) : null, requestId, now, now]);
+        const fullShippingAddress = {
+            ...shippingAddress,
+            fullName: customerName.trim(),
+            phone: phone.trim(),
+            street: shippingAddress.street || '',
+            city: shippingAddress.city || '',
+            province: shippingAddress.province || shippingAddress.state || '',
+            notes: shippingAddress.notes || req.body.notes || ''
+        };
+        await conn.execute('INSERT INTO orders (id,orderId,user_id,guestEmail,guestPhone,total,subtotal,shippingFee,discountAmount,status,paymentMethod,shippingAddress,appliedCoupon,checkoutRequestId,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [internalId, orderId, customerUserId, normalizedEmail, phone, totals.total, totals.subtotal, totals.shippingFee, totals.discount, 'Pending', 'COD', JSON.stringify(fullShippingAddress), coupon ? JSON.stringify({ code: coupon }) : null, requestId, now, now]);
         for (const item of totals.items)
             await conn.execute('INSERT INTO order_items (id,order_id,productId,productName,quantity,price,image,selectedVariant,variationId,routineComponents) VALUES (?,?,?,?,?,?,?,?,?,?)', [crypto.randomBytes(12).toString('hex'), internalId, item.productId, item.productName, item.quantity, item.price, item.image, item.selectedVariant, item.variationId, item.routineComponents ? JSON.stringify(item.routineComponents) : null]);
         await conn.execute('INSERT INTO order_status_history (id,order_id,status,note,timestamp) VALUES (?,?,?,?,?)', [crypto.randomBytes(12).toString('hex'), internalId, 'Pending', 'Order placed', now]);
@@ -317,7 +486,24 @@ router.post('/', authenticateIfPresent, async (req: AuthRequest, res: Response) 
                 console.error(`[TikTok Events API] Could not track order ${orderId}:`, e);
             }
         })().catch(()=>console.error('Order notifications could not finish.'));
-        res.status(201).json(newOrder);
+        const jwtSecret = process.env.JWT_SECRET;
+        let customerToken = '';
+        if (jwtSecret && normalizedEmail && customerUserId) {
+            customerToken = jwt.sign({ userId: customerUserId, email: normalizedEmail, role: 'customer' }, jwtSecret, { expiresIn: '7d' });
+            if (!isAdminUser) {
+                res.cookie(sessionCookieName(), customerToken, {
+                    ...sessionCookieOptions(),
+                    maxAge: 7 * 24 * 60 * 60 * 1000
+                });
+            }
+        }
+        const customerUser = customerUserId ? {
+            id: customerUserId,
+            name: (customerName && String(customerName).trim()) || (normalizedEmail ? normalizedEmail.split('@')[0] : 'Customer'),
+            email: normalizedEmail || '',
+            phone: phone || ''
+        } : null;
+        res.status(201).json({ ...newOrder, customerToken, customerUser });
     }
     catch (error: any) {
         if (conn && !committed)
@@ -343,7 +529,7 @@ router.put('/:orderId/status', authenticateToken, requireAdmin, async (req: Requ
     await conn.beginTransaction();
     try {
         const { status, note } = req.body;
-        const validStatuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
+        const validStatuses = ['Pending', 'Order Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
         if (!validStatuses.includes(status)) {
             await conn.rollback();
             return res.status(400).json({ error: 'Invalid order status' });

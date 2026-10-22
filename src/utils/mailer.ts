@@ -309,7 +309,7 @@ export const buildOrderConfirmationEmail = (order: any, options?: { isNewAccount
     </tr>`;
   }).join('');
   const address = order.shippingAddress || {};
-  const fullAddress = [address.street, address.city, address.state, address.postalCode, address.country]
+  const fullAddress = [address.street, address.city, address.province || address.state, address.postalCode, address.country]
     .map(value => String(value || '').trim())
     .filter(Boolean)
     .join(', ');
@@ -388,8 +388,10 @@ export const sendOrderConfirmationEmail = (order: any, options?: { isNewAccount?
 export const buildOrderStatusEmail = (order: any): EmailContent => {
   const customerName = escapeHtml(order.customerName || 'Customer');
   const orderId = escapeHtml(order.orderId || 'Order');
-  const status = escapeHtml(order.status || 'Updated');
-  const subject = `Order Update #${String(order.orderId || 'Order')} - ${String(order.status || 'Updated')}`;
+  const rawStatus = String(order.status || 'Updated');
+  const statusDisplay = rawStatus === 'Processing' ? 'Order Confirmed' : rawStatus;
+  const status = escapeHtml(statusDisplay);
+  const subject = `Order Update #${String(order.orderId || 'Order')} - ${statusDisplay}`;
   const html = `<!doctype html>
   <html lang="en"><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#334155;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
@@ -452,7 +454,7 @@ export const buildAdminNewOrderEmail = (order: any): EmailContent => {
   }).join('');
 
   const address = order.shippingAddress || {};
-  const fullAddress = [address.street, address.city, address.state, address.postalCode, address.country]
+  const fullAddress = [address.street, address.city, address.province || address.state, address.postalCode, address.country]
     .map(value => String(value || '').trim())
     .filter(Boolean)
     .join(', ');
@@ -502,7 +504,7 @@ export const buildAdminNewOrderEmail = (order: any): EmailContent => {
           <div style="background:#f8fafc;border-radius:14px;padding:16px;margin-bottom:22px;">
             <p style="margin:0;line-height:1.6;color:#334155;">
               ${escapeHtml(fullAddress)}
-              ${order.shippingAddress?.instructions ? `<br/><br/><strong>Instructions:</strong> ${escapeHtml(order.shippingAddress.instructions)}` : ''}
+              ${(order.shippingAddress?.notes || order.shippingAddress?.instructions) ? `<br/><br/><strong>Instructions / Notes:</strong> ${escapeHtml(order.shippingAddress.notes || order.shippingAddress.instructions)}` : ''}
             </p>
           </div>
 
